@@ -336,14 +336,6 @@ struct AccountView: View {
                     ListRow(title: "Erase all data", subtitle: "Events, clients, crew, inventory and payments") { IconTile(symbol: "trash", color: MColor.danger) } trailing: { Chevron() }
                 }.buttonStyle(.plain)
             }
-            #if DEBUG
-            NavigationLink { FeatureFlagsView() } label: {
-                RowGroup {
-                    ListRow(title: "Feature flags", subtitle: "Debug builds only — turn parts of the app on and off") { IconTile(symbol: "switch.2") } trailing: { Chevron() }
-                }
-            }
-            .buttonStyle(.plain)
-            #endif
             VStack(spacing: Space.sm) {
                 MButton(title: "Sign out", style: .secondary) { try? auth.signOut() }
                 MButton(title: "Delete account", style: .destructive) {
@@ -442,36 +434,4 @@ struct ChangePasswordSheet: View {
         .presentationDetents([.medium, .large])
     }
 }
-
-#if DEBUG
-/// Debug-only switchboard over `Feature`. Release builds never see this.
-struct FeatureFlagsView: View {
-    @State private var version = 0   // redraws after a toggle
-
-    var body: some View {
-        ScreenScaffold(title: "Feature flags", subtitle: "Debug builds only. Overrides persist until you reset them.", spacing: Space.lg) {
-            RowGroup {
-                ForEach(Array(Feature.allCases.enumerated()), id: \.element.id) { i, feature in
-                    if i > 0 { Hairline() }
-                    Toggle(isOn: Binding(
-                        get: { Features[feature] },
-                        set: { Features.override(feature, $0); version += 1 }
-                    )) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(feature.title).type(.bodyMd).foregroundStyle(MColor.text)
-                            Text(Features.isOverridden(feature) ? "Overridden · ships \(feature.defaultValue ? "on" : "off")" : "Default")
-                                .type(.caption).foregroundStyle(Features.isOverridden(feature) ? MColor.accentText : MColor.textMute)
-                        }
-                    }
-                    .tint(MColor.accent)
-                    .padding(.horizontal, Space.lg).padding(.vertical, Space.sm)
-                }
-            }
-            .id(version)
-            MButton(title: "Reset to shipping defaults", style: .secondary) { Features.resetOverrides(); version += 1 }
-            Text("Some changes need the screen to be reopened, and sign-in flags need a sign-out.").type(.caption).foregroundStyle(MColor.textMute)
-        }
-    }
-}
-#endif
 

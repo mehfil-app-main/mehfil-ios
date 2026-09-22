@@ -69,7 +69,8 @@ xcodebuild -project Mehfil.xcodeproj -scheme Mehfil -configuration Debug \
 `Model/FeatureConfig.swift` is the one place where capabilities are switched. Every sign-in method and every
 product module (inventory, runsheet, expenses, enquiries, packages, change requests, the client page,
 reminders, dark mode) has a flag with a documented default, so a narrower first version ships without deleting
-code. Debug builds expose the same switches at Profile → Account → Feature flags.
+code. They are build-time decisions on purpose: there is no in-app switchboard, so a shipped app cannot have
+parts of itself turned on and off from the outside, and the whole configuration surface is one readable file.
 
 Sign-in: **Sign in with Apple**, **Google**, and **email + password** with a mandatory verification email,
 password reset and change-password. Without a Firebase config the app runs in device-only mode.

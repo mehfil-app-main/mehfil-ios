@@ -2,13 +2,10 @@ import Foundation
 
 /// Every switchable capability in the app, in one place.
 ///
-/// Defaults are the shipping configuration. To change what a build ships with, edit `defaultValue`
-/// below — nothing else in the app hard-codes these decisions.
-///
-/// In DEBUG builds each flag can also be flipped at runtime from Profile → Account → Feature flags
-/// (or from a test with `Features.override(.emailPassword, false)`), which makes QA and demos
-/// possible without a rebuild. Release builds always use `defaultValue` and ignore overrides.
-enum Feature: String, CaseIterable, Identifiable {
+/// These are **build-time** decisions: edit `defaultValue` below and rebuild. There is deliberately no
+/// in-app switchboard — a shipped app should not let anyone turn parts of itself on and off, and a buyer
+/// reading this file sees the whole configuration surface at once.
+enum Feature {
 
     // MARK: Sign-in methods
 
@@ -57,9 +54,7 @@ enum Feature: String, CaseIterable, Identifiable {
     /// Dark appearance and the Appearance picker. Off pins the app to light.
     case darkMode
 
-    var id: String { rawValue }
-
-    /// What a release build uses.
+    /// What this build ships with. This is the only place any of these decisions is made.
     var defaultValue: Bool {
         switch self {
         case .appleSignIn: true
@@ -81,37 +76,11 @@ enum Feature: String, CaseIterable, Identifiable {
         }
     }
 
-    var title: String {
-        switch self {
-        case .appleSignIn: "Sign in with Apple"
-        case .googleSignIn: "Continue with Google"
-        case .emailPassword: "Email and password"
-        case .emailVerificationRequired: "Require a verified email"
-        case .deviceOnlyMode: "Continue on this device"
-        case .sampleSeason: "Load the sample season"
-        case .removeSampleSeason: "Remove the sample season"
-        case .inventory: "Inventory"
-        case .runsheet: "Runsheet"
-        case .expenses: "Expenses"
-        case .enquiries: "Enquiries"
-        case .packages: "Package templates"
-        case .changeRequests: "Change requests"
-        case .sharedClientPage: "Client page"
-        case .paymentReminders: "Payment reminders"
-        case .darkMode: "Dark appearance"
-        }
-    }
 }
 
 /// Reads feature flags. `Features[.inventory]` anywhere in the app.
 enum Features {
-    private static let overrideKey = "featureOverrides"
-
-    /// True when the feature is on for this build.
     static subscript(_ feature: Feature) -> Bool {
-        #if DEBUG
-        if let stored = overrides[feature.rawValue] { return stored }
-        #endif
         // Apple's capability cannot be provisioned by a free personal team; run-on-device.sh sets this.
         #if PERSONAL_TEAM
         if feature == .appleSignIn { return false }
@@ -121,24 +90,4 @@ enum Features {
 
     /// True when at least one cloud sign-in method is available — i.e. the welcome screen has something to show.
     static var hasCloudSignIn: Bool { self[.appleSignIn] || self[.googleSignIn] || self[.emailPassword] }
-
-    // MARK: Debug overrides
-
-    static var overrides: [String: Bool] {
-        get { UserDefaults.standard.dictionary(forKey: overrideKey) as? [String: Bool] ?? [:] }
-        set { UserDefaults.standard.set(newValue, forKey: overrideKey) }
-    }
-
-    /// Flips a flag for this install (DEBUG only; release builds ignore it).
-    static func override(_ feature: Feature, _ value: Bool?) {
-        var current = overrides
-        if let value { current[feature.rawValue] = value } else { current.removeValue(forKey: feature.rawValue) }
-        overrides = current
-    }
-
-    /// Drops every override, returning the build to its shipping configuration.
-    static func resetOverrides() { UserDefaults.standard.removeObject(forKey: overrideKey) }
-
-    /// True when the flag differs from what a release build would use.
-    static func isOverridden(_ feature: Feature) -> Bool { overrides[feature.rawValue] != nil }
 }
