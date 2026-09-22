@@ -32,8 +32,12 @@ enum Feature: String, CaseIterable, Identifiable {
     // Each of these hides a whole area of the app: its rows, its routes and its entry points.
     // They exist so a buyer can ship a narrower first version without deleting code.
 
-    /// Load the twelve-event demo season during onboarding and from Account.
+    /// Offer the twelve-event demo season: the onboarding toggle and the Account row that loads it.
+    /// Off by default — a buyer's production build should not ship demo data behind a one-tap button.
     case sampleSeason
+    /// Offer "Remove the sample season" in Account: deletes exactly the demo records by their fixed ids and
+    /// leaves everything the vendor entered untouched. Off by default, for the same reason.
+    case removeSampleSeason
     /// Inventory: stock items, per-date holds, the commitment strip.
     case inventory
     /// Runsheet: the per-event task list with blocks, reorder and completion.
@@ -63,7 +67,8 @@ enum Feature: String, CaseIterable, Identifiable {
         case .emailPassword: true
         case .emailVerificationRequired: true
         case .deviceOnlyMode: true
-        case .sampleSeason: true
+        case .sampleSeason: false
+        case .removeSampleSeason: false
         case .inventory: true
         case .runsheet: true
         case .expenses: true
@@ -83,7 +88,8 @@ enum Feature: String, CaseIterable, Identifiable {
         case .emailPassword: "Email and password"
         case .emailVerificationRequired: "Require a verified email"
         case .deviceOnlyMode: "Continue on this device"
-        case .sampleSeason: "Sample season"
+        case .sampleSeason: "Load the sample season"
+        case .removeSampleSeason: "Remove the sample season"
         case .inventory: "Inventory"
         case .runsheet: "Runsheet"
         case .expenses: "Expenses"

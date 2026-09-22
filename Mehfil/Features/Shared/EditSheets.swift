@@ -175,7 +175,7 @@ struct BusinessProfileSheet: View {
         SheetScaffold(title: "Business details") {
             InputField(label: "Business name", text: $business)
             InputField(label: "Your name", text: $owner)
-            InputField(label: "Phone", text: $phone, helper: "Shown to clients on the page you share with them.", keyboard: .phonePad)
+            PhoneField(text: $phone, helper: "Shown to clients on the page you share with them.")
             InputField(label: "Area", text: $area, placeholder: "Sector 44, Gurugram")
             InputField(label: "Operating since", text: $since, placeholder: "since 2018")
             InputField(label: "Season target (₹)", text: $target, placeholder: "6000000", helper: "The bar on the season summary measures bookings against this.", keyboard: .numberPad)
@@ -246,7 +246,7 @@ struct ClientSheet: View {
     var body: some View {
         SheetScaffold(title: "Edit client") {
             InputField(label: "Name", text: $name)
-            InputField(label: "Phone", text: $phone, keyboard: .phonePad)
+            PhoneField(text: $phone)
             Toggle(isOn: $isRepeat) { Text("Repeat client").type(.bodyMd).foregroundStyle(MColor.text) }.tint(MColor.accent)
         } actions: {
             MButton(title: "Save") { var c = client; c.name = name.trimmingCharacters(in: .whitespaces); c.phone = phone; c.isRepeat = isRepeat; store.updateClient(c); dismiss() }

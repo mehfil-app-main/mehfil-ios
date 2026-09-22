@@ -69,6 +69,20 @@ enum Fmt {
         let digits = phone.filter(\.isNumber)
         return digits.count == 10 ? "91" + digits : digits
     }
+    /// Indian mobile numbers are 10 digits. Stored and compared as digits only; displayed grouped 5+5.
+    static func phoneDigitsOnly(_ input: String) -> String { String(input.filter(\.isNumber).prefix(10)) }
+
+    /// nil when the number is acceptable, otherwise the reason. An empty number is allowed — phone is optional.
+    static func phoneProblem(_ input: String) -> String? {
+        let digits = input.filter(\.isNumber)
+        if digits.isEmpty { return nil }
+        if digits.count != 10 { return "A mobile number is 10 digits." }
+        if let first = digits.first, !"6789".contains(first) { return "Indian mobile numbers start with 6, 7, 8 or 9." }
+        return nil
+    }
+
+    static func isValidPhone(_ input: String) -> Bool { phoneProblem(input) == nil }
+
     /// Builds an E.164 number from a dialling code and a local number; nil when it can't be one.
     static func e164(code: String, number: String) -> String? {
         let c = code.filter(\.isNumber), n = number.filter(\.isNumber)

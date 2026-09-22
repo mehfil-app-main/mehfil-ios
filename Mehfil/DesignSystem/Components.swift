@@ -307,6 +307,69 @@ struct InputField: View {
 }
 
 /// Field-shaped row that opens a picker or a date sheet (B3 event type, dates, E3 source / budget).
+/// A phone field that accepts digits only, caps at 10, and shows why a number is rejected.
+/// The binding always receives digits — formatting for display happens at the point of use.
+struct PhoneField: View {
+    var label: String = "Phone"
+    @Binding var text: String
+    var placeholder = "98100 00000"
+    var helper: String? = nil
+    var body: some View {
+        InputField(
+            label: label,
+            text: Binding(get: { text }, set: { text = Fmt.phoneDigitsOnly($0) }),
+            placeholder: placeholder,
+            helper: helper,
+            error: Fmt.phoneProblem(text),
+            keyboard: .numberPad
+        )
+    }
+}
+
+/// A password field with a visibility toggle. SwiftUI cannot switch a SecureField to a TextField in place
+/// without losing focus, so both are kept and only one is shown.
+struct PasswordField: View {
+    var label: String
+    @Binding var text: String
+    var placeholder = ""
+    var helper: String? = nil
+    var newPassword = false
+    @State private var visible = false
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.sm) {
+            Text(label).type(.caption).foregroundStyle(MColor.textMute)
+            HStack(spacing: Space.sm) {
+                Group {
+                    if visible {
+                        TextField(placeholder, text: $text).textContentType(newPassword ? .newPassword : .password)
+                    } else {
+                        SecureField(placeholder, text: $text).textContentType(newPassword ? .newPassword : .password)
+                    }
+                }
+                .type(.bodyMd).foregroundStyle(MColor.text).tint(MColor.text)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                .focused($focused)
+                Button { visible.toggle() } label: {
+                    Image(systemName: visible ? "eye.slash" : "eye")
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundStyle(MColor.textMute)
+                        .frame(width: Dim.touch, height: Dim.touch)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(visible ? "Hide password" : "Show password")
+            }
+            .padding(.leading, Space.md)
+            .frame(height: Dim.input)
+            .background(MColor.surface, in: RoundedRectangle(cornerRadius: Radius.sm, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.sm, style: .continuous).strokeBorder(focused ? MColor.text : MColor.lineInput, lineWidth: 1))
+            if let helper { Text(helper).type(.caption).foregroundStyle(MColor.textMute) }
+        }
+    }
+}
+
 struct PickerField: View {
     var label: String
     var value: String

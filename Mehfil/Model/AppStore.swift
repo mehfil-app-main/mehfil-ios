@@ -118,6 +118,18 @@ final class AppStore {
         Task { do { try await repo.saveProfile(uid: uid, p) } catch { show(.error, "Couldn't save: \(error.localizedDescription)") } }
     }
 
+    /// Deletes exactly the records the sample season wrote. Its ids are fixed ("kapoor", "kapoor-sangeet", …),
+    /// so anything the vendor created themselves is untouched — unlike `eraseAllData`, which clears everything.
+    func removeSampleSeason() async {
+        guard let uid else { return }
+        let deletes: [WriteOp] = SampleSeason.data().asWrites.map { op in
+            if case .set(let collection, let id, _) = op { return .delete(collection: collection, id: id) }
+            return op
+        }
+        do { try await repo.write(uid: uid, deletes); show(.success, "Sample season removed") }
+        catch { show(.error, "Couldn't remove it: \(error.localizedDescription)") }
+    }
+
     func loadSampleSeason() async {
         guard let uid else { return }
         do { try await repo.write(uid: uid, SampleSeason.data().asWrites); show(.success, "Sample season loaded") }

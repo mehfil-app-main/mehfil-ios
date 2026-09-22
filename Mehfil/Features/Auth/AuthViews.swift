@@ -138,16 +138,15 @@ struct EmailAuthSheet: View {
             }
             InputField(label: "Email", text: $email, placeholder: "you@example.com", keyboard: .emailAddress).focused($focus, equals: .email)
             if mode != .reset {
-                SecureField("", text: $password, prompt: Text(mode == .signUp ? "At least 8 characters" : "Your password"))
-                    .fieldChrome(label: "Password", helper: mode == .signUp ? AuthService.passwordProblem(password).map { $0 } : nil)
-                    .textContentType(mode == .signUp ? .newPassword : .password)
-                    .focused($focus, equals: .password)
+                PasswordField(label: "Password", text: $password,
+                              placeholder: mode == .signUp ? "At least 8 characters" : "Your password",
+                              helper: mode == .signUp ? AuthService.passwordProblem(password) : nil,
+                              newPassword: mode == .signUp)
             }
             if mode == .signUp {
-                SecureField("", text: $confirm, prompt: Text("Type it again"))
-                    .fieldChrome(label: "Confirm password", helper: !confirm.isEmpty && confirm != password ? "The two passwords don't match." : nil)
-                    .textContentType(.newPassword)
-                    .focused($focus, equals: .confirm)
+                PasswordField(label: "Confirm password", text: $confirm, placeholder: "Type it again",
+                              helper: !confirm.isEmpty && confirm != password ? "The two passwords don't match." : nil,
+                              newPassword: true)
             }
             if let notice { Text(notice).type(.caption).foregroundStyle(MColor.text) }
             if let error { Text(error).type(.caption).foregroundStyle(MColor.danger) }
@@ -261,7 +260,7 @@ struct OnboardingView: View {
             ScreenScaffold(title: "Set up your business", subtitle: "Signed in with \(account.providerLabel)" + (account.email.map { " · \($0)" } ?? ""), spacing: Space.lg, bottomPadding: 120) {
                 InputField(label: "Your name", text: $owner, placeholder: "Anand Mehra")
                 InputField(label: "Business name", text: $business, placeholder: "Mehfil Decor")
-                InputField(label: "Phone", text: $phone, placeholder: "98110 08123", helper: "Shown to clients on the page you share with them.", keyboard: .phonePad)
+                PhoneField(text: $phone, placeholder: "98110 08123", helper: "Shown to clients on the page you share with them.")
                 InputField(label: "Area", text: $area, placeholder: "Sector 44, Gurugram")
                 if Features[.sampleSeason] {
                     Toggle(isOn: $loadSample) {
@@ -282,7 +281,7 @@ struct OnboardingView: View {
                         saving = false
                     }
                 }
-                .disabled(owner.trimmingCharacters(in: .whitespaces).isEmpty || business.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(owner.trimmingCharacters(in: .whitespaces).isEmpty || business.trimmingCharacters(in: .whitespaces).isEmpty || !Fmt.isValidPhone(phone))
             }
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Sign out") { try? auth.signOut() }.type(.buttonSm) } }
             .onAppear { if owner.isEmpty, let n = account.name { owner = n } }
@@ -295,6 +294,7 @@ struct AccountView: View {
     @Environment(AuthService.self) private var auth
     @Environment(AppStore.self) private var store
     @State private var confirmErase = false
+    @State private var confirmRemoveSample = false
     @State private var confirmDelete = false
     @State private var passwordSheet = false
     @State private var deletePassword = ""
@@ -323,6 +323,12 @@ struct AccountView: View {
                 if Features[.sampleSeason] {
                     Button { Task { await store.loadSampleSeason() } } label: {
                         ListRow(title: "Load the sample season", subtitle: "Adds the demo events, crew and payments") { IconTile(symbol: "sparkles") } trailing: { Chevron() }
+                    }.buttonStyle(.plain)
+                    Hairline(inset: 68)
+                }
+                if Features[.removeSampleSeason] {
+                    Button { confirmRemoveSample = true } label: {
+                        ListRow(title: "Remove the sample season", subtitle: "Deletes only the demo records — your own work stays") { IconTile(symbol: "sparkles.slash") } trailing: { Chevron() }
                     }.buttonStyle(.plain)
                     Hairline(inset: 68)
                 }
@@ -356,6 +362,15 @@ struct AccountView: View {
         }
         .overlay { if busy { ZStack { MColor.scrim.ignoresSafeArea(); ProgressView().tint(.white) } } }
         .sheet(isPresented: $passwordSheet) { ChangePasswordSheet() }
+        .sheet(isPresented: $confirmRemoveSample) {
+            SheetScaffold(title: "Remove the sample season?", subtitle: "The twelve demo events and their clients, crew, inventory, payments and tasks go. Anything you created yourself stays exactly as it is.") { EmptyView() } actions: {
+                VStack(spacing: Space.sm) {
+                    MButton(title: "Remove the sample data", style: .destructive) { confirmRemoveSample = false; perform { await store.removeSampleSeason() } }
+                    MButton(title: "Keep it", style: .tertiary, size: .compact) { confirmRemoveSample = false }
+                }
+            }
+            .presentationDetents([.medium])
+        }
         .sheet(isPresented: $confirmErase) {
             SheetScaffold(title: "Erase everything in \(store.vendor?.businessName ?? "Mehfil")?", subtitle: "Every event, client, crew member, item and payment record goes. Your account and profile stay.") { EmptyView() } actions: {
                 VStack(spacing: Space.sm) {
@@ -368,9 +383,8 @@ struct AccountView: View {
         .sheet(isPresented: $confirmDelete) {
             SheetScaffold(title: "Delete your Mehfil account?", subtitle: "\(store.vendor?.businessName ?? "Your business") and all its records are deleted permanently.") {
                 if auth.account?.provider == "password" {
-                    SecureField("", text: $deletePassword, prompt: Text("Your password"))
-                        .fieldChrome(label: "Confirm your password", helper: "Firebase needs a fresh sign-in before deleting an account.")
-                        .textContentType(.password)
+                    PasswordField(label: "Confirm your password", text: $deletePassword, placeholder: "Your password",
+                                  helper: "Firebase needs a fresh sign-in before deleting an account.")
                 }
             } actions: {
                 VStack(spacing: Space.sm) {
@@ -409,9 +423,10 @@ struct ChangePasswordSheet: View {
 
     var body: some View {
         SheetScaffold(title: "Change password", subtitle: "You'll stay signed in on this device.") {
-            SecureField("", text: $current, prompt: Text("Current password")).fieldChrome(label: "Current password").textContentType(.password)
-            SecureField("", text: $new, prompt: Text("At least 8 characters")).fieldChrome(label: "New password", helper: AuthService.passwordProblem(new)).textContentType(.newPassword)
-            SecureField("", text: $confirm, prompt: Text("Type it again")).fieldChrome(label: "Confirm new password", helper: !confirm.isEmpty && confirm != new ? "The two passwords don't match." : nil).textContentType(.newPassword)
+            PasswordField(label: "Current password", text: $current, placeholder: "Your current password")
+            PasswordField(label: "New password", text: $new, placeholder: "At least 8 characters", helper: AuthService.passwordProblem(new), newPassword: true)
+            PasswordField(label: "Confirm new password", text: $confirm, placeholder: "Type it again",
+                          helper: !confirm.isEmpty && confirm != new ? "The two passwords don't match." : nil, newPassword: true)
             if let error { Text(error).type(.caption).foregroundStyle(MColor.danger) }
         } actions: {
             MButton(title: "Save password", loading: busy) {
@@ -460,23 +475,3 @@ struct FeatureFlagsView: View {
 }
 #endif
 
-/// A SecureField dressed as an InputField, so password fields match every other field on the screen.
-private struct FieldChrome: ViewModifier {
-    var label: String
-    var helper: String?
-    func body(content: Content) -> some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
-            Text(label).type(.caption).foregroundStyle(MColor.textMute)
-            content
-                .type(.bodyMd).foregroundStyle(MColor.text).tint(MColor.text)
-                .padding(.horizontal, Space.md).frame(height: Dim.input)
-                .background(MColor.surface, in: RoundedRectangle(cornerRadius: Radius.sm, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.sm, style: .continuous).strokeBorder(MColor.lineInput, lineWidth: 1))
-            if let helper { Text(helper).type(.caption).foregroundStyle(MColor.textMute) }
-        }
-    }
-}
-
-extension View {
-    func fieldChrome(label: String, helper: String? = nil) -> some View { modifier(FieldChrome(label: label, helper: helper)) }
-}

@@ -174,7 +174,7 @@ struct EnquiryIntakeView: View {
     var body: some View {
         ScreenScaffold(title: existing == nil ? "New enquiry" : "Enquiry", largeTitle: false, spacing: Space.lg, bottomPadding: 100) {
             InputField(label: "Name", text: $name, placeholder: "Who is asking")
-            InputField(label: "Phone", text: $phone, placeholder: "98100 00000", keyboard: .phonePad)
+            PhoneField(text: $phone)
             PickerField(label: "Source", value: source) { showSource = true }
             PickerField(label: "Budget range", value: budget) { showBudget = true }
             PickerField(label: "Tentative date", value: date.map { Fmt.weekdayLongYear.string(from: $0) } ?? "", placeholder: "Pick a date", trailing: "calendar", highlighted: date != nil) { showDate = true }

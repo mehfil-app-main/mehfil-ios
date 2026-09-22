@@ -55,7 +55,7 @@ struct CreateEventView: View {
     private var stepOne: some View {
         VStack(alignment: .leading, spacing: Space.lg) {
             InputField(label: "Client name", text: draft.clientName, placeholder: "Surname the family goes by")
-            InputField(label: "Phone", text: draft.phone, placeholder: "98100 00000", keyboard: .phonePad)
+            PhoneField(text: draft.phone)
             PickerField(label: "Event type", value: store.draft.type?.label ?? "") { showType = true }
             PickerField(label: "Date", value: store.draft.date.map { Fmt.weekdayLongYear.string(from: $0) } ?? "", placeholder: "Pick a date", trailing: "calendar", highlighted: store.draft.date != nil) { showDate = true }
             // Conflict check fires on date selection, not on submission (spec B3).
