@@ -18,7 +18,7 @@ struct HomeView: View {
     var body: some View {
         let v = store.vendor
         ScreenScaffold(title: "\(greeting), \(v?.ownerFirstName ?? "there")",
-                       subtitle: "\(Fmt.weekdayLong.string(from: Cal.today)) · \(saturdayEvents.count == 0 ? "nothing" : "\(saturdayEvents.count) events") this Saturday", isRoot: true,
+                       subtitle: "\(Fmt.weekdayLong.string(from: Cal.today)) · \(saturdayEvents.count == 0 ? "nothing" : "\(saturdayEvents.count) event\(saturdayEvents.count == 1 ? "" : "s")") this Saturday", isRoot: true,
                        headerTrailing: AnyView(GlassIconButton(symbol: "chart.bar") { store.push(.seasonSummary) })) {
             if let (a, b, m) = store.seasonConflict, v?.notifyConflicts ?? true {
                 ConflictBanner(text: "\(a.name) and \(b.name) both need \(m.firstName)'s team on \(Fmt.weekdayDayMonth.string(from: a.start)).") {
@@ -90,7 +90,7 @@ struct CalendarMonthView: View {
     private var dayEvents: [Event] { store.events(on: selected) }
 
     var body: some View {
-        ScreenScaffold(title: Fmt.monthYear.string(from: month), subtitle: monthEvents.isEmpty ? "No events this month" : "\(monthEvents.count) events · \(Fmt.inr(monthEvents.reduce(0) { $0 + $1.quoted })) booked", spacing: Space.lg) {
+        ScreenScaffold(title: Fmt.monthYear.string(from: month), subtitle: monthEvents.isEmpty ? "No events this month" : "\(monthEvents.count) event\(monthEvents.count == 1 ? "" : "s") · \(Fmt.inr(monthEvents.reduce(0) { $0 + $1.quoted })) booked", spacing: Space.lg) {
             CalendarGrid(month: month, selected: $selected, eventsByDay: byDay, conflictDays: conflictDays)
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 30).onEnded { v in

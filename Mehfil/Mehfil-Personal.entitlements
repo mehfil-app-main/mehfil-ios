@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Empty on purpose: a free "personal team" cannot provision Sign in with Apple or Push Notifications.
+	     run-on-device.sh selects this file so the app can be signed and run on a real iPhone for testing.
+	     The App Store build uses Mehfil.entitlements, which has both. -->
+</dict>
+</plist>

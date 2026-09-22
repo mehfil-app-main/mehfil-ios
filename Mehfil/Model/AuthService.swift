@@ -11,22 +11,32 @@ struct Account: Equatable {
     var uid: String
     var name: String?
     var email: String?
-    var phone: String?          // E.164, present once a number has been verified with an OTP
-    var provider: String        // "apple.com" | "google.com" | "phone" | "device"
-    var providerLabel: String { switch provider { case "apple.com": "Apple"; case "google.com": "Google"; case "phone": "Phone"; default: "This device" } }
+    var provider: String        // "apple.com" | "google.com" | "password" | "device"
+    /// False only for an email/password account whose verification link has not been opened yet.
+    var emailVerified: Bool
+
+    var providerLabel: String {
+        switch provider {
+        case "apple.com": "Apple"
+        case "google.com": "Google"
+        case "password": "Email"
+        default: "This device"
+        }
+    }
 }
 
 enum AuthError: LocalizedError {
-    case cancelled, noToken, noPresenter, notConfigured, appleUnavailable, noCodeSent, notSignedIn
+    case cancelled, noToken, noPresenter, notConfigured, appleUnavailable, notSignedIn, weakPassword, passwordMismatch
     var errorDescription: String? {
         switch self {
-        case .noCodeSent: "Send a code first."
-        case .notSignedIn: "You're not signed in."
         case .cancelled: "Sign-in was cancelled."
-        case .appleUnavailable: "Sign in with Apple isn't available here. Sign in to an Apple Account in Settings first, then try again."
         case .noToken: "The sign-in provider did not return a token."
         case .noPresenter: "Nothing to present the sign-in from."
         case .notConfigured: "Cloud sign-in is not configured in this build."
+        case .appleUnavailable: "Sign in with Apple isn't available here. Sign in to an Apple Account in Settings first, then try again."
+        case .notSignedIn: "You're not signed in."
+        case .weakPassword: "Use at least 8 characters, with a letter and a number."
+        case .passwordMismatch: "The two passwords don't match."
         }
     }
 }
@@ -38,7 +48,6 @@ final class AuthService {
     private(set) var state: State = .loading
     let isCloud: Bool
     private var listener: AuthStateDidChangeListenerHandle?
-    private var currentNonce: String?
     private var appleCoordinator: AppleSignInCoordinator?
     private static let localKey = "localAccountActive"
 
@@ -46,10 +55,6 @@ final class AuthService {
         isCloud = Backend.isConfigured
         if isCloud {
             if let clientID = FirebaseApp.app()?.options.clientID { GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID) }
-            #if targetEnvironment(simulator)
-            // The simulator has no APNs: let the fictional test numbers from the Firebase console work without app verification.
-            Auth.auth().settings?.isAppVerificationDisabledForTesting = true
-            #endif
             listener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
                 self?.state = user.map { .signedIn(Self.account(from: $0)) } ?? .signedOut
             }
@@ -59,11 +64,19 @@ final class AuthService {
     }
 
     var account: Account? { if case .signedIn(let a) = state { return a }; return nil }
-    static let localAccount = Account(uid: "local-device", name: nil, email: nil, phone: nil, provider: "device")
+    static let localAccount = Account(uid: "local-device", name: nil, email: nil, provider: "device", emailVerified: true)
+
+    /// True when the signed-in account still has to open its verification link before using the app.
+    var needsEmailVerification: Bool {
+        guard Features[.emailVerificationRequired], let a = account else { return false }
+        return a.provider == "password" && !a.emailVerified
+    }
 
     private static func account(from user: User) -> Account {
-        Account(uid: user.uid, name: user.displayName, email: user.email, phone: user.phoneNumber,
-                provider: user.providerData.first(where: { $0.providerID != "firebase" })?.providerID ?? "firebase")
+        let provider = user.providerData.first(where: { $0.providerID != "firebase" })?.providerID ?? "firebase"
+        return Account(uid: user.uid, name: user.displayName, email: user.email, provider: provider,
+                       // Only a password account can be unverified; federated providers vouch for the address.
+                       emailVerified: provider == "password" ? user.isEmailVerified : true)
     }
 
     // MARK: Device-only account (no Firebase config)
@@ -73,13 +86,99 @@ final class AuthService {
         state = .signedIn(Self.localAccount)
     }
 
+    // MARK: Email and password
+
+    /// Minimum we accept: 8 characters with at least one letter and one digit.
+    static func passwordProblem(_ password: String) -> String? {
+        if password.count < 8 { return "Use at least 8 characters." }
+        if !password.contains(where: \.isLetter) { return "Include at least one letter." }
+        if !password.contains(where: \.isNumber) { return "Include at least one number." }
+        return nil
+    }
+
+    static func isValidEmail(_ email: String) -> Bool {
+        let t = email.trimmingCharacters(in: .whitespaces)
+        guard let at = t.firstIndex(of: "@"), t.firstIndex(of: "@") == t.lastIndex(of: "@") else { return false }
+        let local = t[t.startIndex..<at], domain = t[t.index(after: at)...]
+        return !local.isEmpty && domain.contains(".") && !domain.hasPrefix(".") && !domain.hasSuffix(".") && !t.contains(" ")
+    }
+
+    /// Creates the account, stores the owner's name on it and sends the verification email.
+    @MainActor
+    func signUp(email: String, password: String, name: String) async throws {
+        guard isCloud else { throw AuthError.notConfigured }
+        let result = try await Auth.auth().createUser(withEmail: email.trimmingCharacters(in: .whitespaces), password: password)
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            let change = result.user.createProfileChangeRequest()
+            change.displayName = trimmed
+            try? await change.commitChanges()
+        }
+        try? await result.user.sendEmailVerification()
+        state = .signedIn(Self.account(from: result.user))
+    }
+
+    @MainActor
+    func signIn(email: String, password: String) async throws {
+        guard isCloud else { throw AuthError.notConfigured }
+        let result = try await Auth.auth().signIn(withEmail: email.trimmingCharacters(in: .whitespaces), password: password)
+        state = .signedIn(Self.account(from: result.user))
+    }
+
+    /// Sends (or resends) the verification email for the signed-in account.
+    func sendVerificationEmail() async throws {
+        guard let user = Auth.auth().currentUser else { throw AuthError.notSignedIn }
+        try await user.sendEmailVerification()
+    }
+
+    /// Pulls the user record again so `emailVerified` reflects a link opened elsewhere.
+    @MainActor @discardableResult
+    func refreshVerification() async -> Bool {
+        guard let user = Auth.auth().currentUser else { return false }
+        try? await user.reload()
+        guard let fresh = Auth.auth().currentUser else { return false }
+        state = .signedIn(Self.account(from: fresh))
+        return fresh.isEmailVerified
+    }
+
+    func sendPasswordReset(to email: String) async throws {
+        guard isCloud else { throw AuthError.notConfigured }
+        try await Auth.auth().sendPasswordReset(withEmail: email.trimmingCharacters(in: .whitespaces))
+    }
+
+    /// Changes the password after confirming the current one.
+    func changePassword(current: String, new: String) async throws {
+        guard let user = Auth.auth().currentUser, let email = user.email else { throw AuthError.notSignedIn }
+        try await user.reauthenticate(with: EmailAuthProvider.credential(withEmail: email, password: current))
+        try await user.updatePassword(to: new)
+    }
+
+    /// Firebase's email/password errors in plain words.
+    static func message(for error: Error) -> String {
+        let e = error as NSError
+        guard e.domain == AuthErrorDomain, let code = AuthErrorCode(rawValue: e.code) else { return error.localizedDescription }
+        switch code {
+        case .invalidEmail: return "That doesn't look like an email address."
+        case .emailAlreadyInUse: return "An account already exists for this email. Sign in instead."
+        case .weakPassword: return "That password is too easy to guess. Use at least 8 characters with a letter and a number."
+        case .wrongPassword, .invalidCredential: return "Wrong email or password."
+        case .userNotFound: return "No account for that email. Create one first."
+        case .userDisabled: return "This account has been disabled."
+        case .tooManyRequests: return "Too many attempts. Wait a few minutes and try again."
+        case .networkError: return "No connection. Check your internet and try again."
+        case .requiresRecentLogin: return "Please sign in again before making this change."
+        case .credentialAlreadyInUse, .accountExistsWithDifferentCredential:
+            return "This email is already used by another sign-in method. Use that one instead."
+        default: return error.localizedDescription
+        }
+    }
+
     // MARK: Sign in with Apple
 
     @MainActor
     func signInWithApple() async throws {
         guard isCloud else { throw AuthError.notConfigured }
         let nonce = Self.randomNonce()
-        currentNonce = nonce
         let (credential, _) = try await requestApple(nonce: nonce)
         guard let tokenData = credential.identityToken, let idToken = String(data: tokenData, encoding: .utf8) else { throw AuthError.noToken }
         let firebaseCredential = OAuthProvider.appleCredential(withIDToken: idToken, rawNonce: nonce, fullName: credential.fullName)
@@ -116,61 +215,6 @@ final class AuthService {
         try await Auth.auth().signIn(with: credential)
     }
 
-    // MARK: Phone number + OTP
-
-    /// What a verified code should do: start a session, attach the number to the signed-in account, replace it, or prove identity.
-    enum PhoneIntent { case signIn, link, update, reauth }
-    private var phoneVerificationID: String?
-
-    /// Texts a 6-digit code to an E.164 number. On a device Firebase verifies the app silently over APNs; on the
-    /// simulator (no APNs) it falls back to a reCAPTCHA page, so the Google URL scheme must be registered.
-    @MainActor
-    func sendCode(to phone: String) async throws {
-        guard isCloud else { throw AuthError.notConfigured }
-        phoneVerificationID = try await PhoneAuthProvider.provider().verifyPhoneNumber(phone, uiDelegate: nil)
-    }
-
-    /// Confirms the code and applies the intent. Returns the verified number as Firebase stores it (E.164).
-    @MainActor @discardableResult
-    func confirmCode(_ code: String, intent: PhoneIntent) async throws -> String {
-        guard let id = phoneVerificationID else { throw AuthError.noCodeSent }
-        let credential = PhoneAuthProvider.provider().credential(withVerificationID: id, verificationCode: code.filter(\.isNumber))
-        let user: User
-        switch intent {
-        case .signIn:
-            user = try await Auth.auth().signIn(with: credential).user
-        case .link:
-            guard let u = Auth.auth().currentUser else { throw AuthError.notSignedIn }
-            do { user = try await u.link(with: credential).user }
-            catch let e as NSError where e.code == AuthErrorCode.providerAlreadyLinked.rawValue { try await u.updatePhoneNumber(credential); user = u }
-        case .update:
-            guard let u = Auth.auth().currentUser else { throw AuthError.notSignedIn }
-            try await u.updatePhoneNumber(credential); user = u
-        case .reauth:
-            guard let u = Auth.auth().currentUser else { throw AuthError.notSignedIn }
-            try await u.reauthenticate(with: credential); user = u
-        }
-        phoneVerificationID = nil
-        state = .signedIn(Self.account(from: user))
-        return user.phoneNumber ?? ""
-    }
-
-    /// Firebase's phone-auth errors in plain words.
-    static func phoneMessage(for error: Error) -> String {
-        let e = error as NSError
-        guard e.domain == AuthErrorDomain, let code = AuthErrorCode(rawValue: e.code) else { return error.localizedDescription }
-        switch code {
-        case .invalidPhoneNumber, .missingPhoneNumber: return "Enter a valid mobile number with its country code."
-        case .invalidVerificationCode: return "That code isn't right. Check the SMS and try again."
-        case .sessionExpired: return "The code has expired — send a new one."
-        case .credentialAlreadyInUse: return "This number is already linked to another Mehfil account."
-        case .tooManyRequests, .quotaExceeded: return "Too many attempts from this device. Try again in a while."
-        case .captchaCheckFailed, .appNotVerified: return "We couldn't confirm this app. Try again on a real device."
-        case .requiresRecentLogin: return "Please sign in again before changing your number."
-        default: return error.localizedDescription
-        }
-    }
-
     // MARK: Sign out / delete
 
     func signOut() throws {
@@ -185,29 +229,34 @@ final class AuthService {
 
     /// Deletes the Firebase user. Re-authenticates first (Firebase requires a recent sign-in) and revokes the
     /// Sign in with Apple token, as App Store Review requires. The caller deletes the vendor's data beforehand.
+    ///
+    /// `password` is required only for email/password accounts — the UI asks for it before calling.
     @MainActor
-    func deleteAccount() async throws {
+    func deleteAccount(password: String? = nil) async throws {
         guard isCloud else { UserDefaults.standard.set(false, forKey: Self.localKey); state = .signedOut; return }
         guard let user = Auth.auth().currentUser else { return }
-        let provider = user.providerData.first?.providerID ?? ""
-        if provider == "apple.com" {
+        switch user.providerData.first?.providerID ?? "" {
+        case "apple.com":
             let nonce = Self.randomNonce()
             let (credential, code) = try await requestApple(nonce: nonce)
             guard let tokenData = credential.identityToken, let idToken = String(data: tokenData, encoding: .utf8) else { throw AuthError.noToken }
             try await user.reauthenticate(with: OAuthProvider.appleCredential(withIDToken: idToken, rawNonce: nonce, fullName: nil))
             if let code { try? await Auth.auth().revokeToken(withAuthorizationCode: code) }
-        } else if provider == "google.com" {
+        case "google.com":
             guard let presenter = Self.topViewController() else { throw AuthError.noPresenter }
             let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: presenter)
             guard let idToken = result.user.idToken?.tokenString else { throw AuthError.noToken }
             try await user.reauthenticate(with: GoogleAuthProvider.credential(withIDToken: idToken, accessToken: result.user.accessToken.tokenString))
+        case "password":
+            guard let email = user.email, let password else { throw AuthError.notSignedIn }
+            try await user.reauthenticate(with: EmailAuthProvider.credential(withEmail: email, password: password))
+        default: break
         }
-        // "phone" accounts re-authenticate with an OTP (confirmCode(_:intent: .reauth)) before the caller gets here.
         try await user.delete()
         GIDSignIn.sharedInstance.signOut()
     }
 
-    func handle(url: URL) -> Bool { isCloud ? (Auth.auth().canHandle(url) || GIDSignIn.sharedInstance.handle(url)) : false }
+    func handle(url: URL) -> Bool { isCloud ? GIDSignIn.sharedInstance.handle(url) : false }
 
     // MARK: Helpers
 

@@ -265,10 +265,10 @@ struct SharedEventPageView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.xl) {
                     VStack(alignment: .leading, spacing: Space.sm) {
-                        Text("\(v.businessName.uppercased()) · FOR THE \(e.surname.uppercased()) FAMILY").type(.microCap).foregroundStyle(Palette.inkMute).tracking(0.6)
-                        Text(e.name).type(.displayHero).foregroundStyle(Palette.ink)
+                        Text("\(v.businessName.uppercased()) · FOR THE \(e.surname.uppercased()) FAMILY").type(.microCap).foregroundStyle(Palette.muted).tracking(0.6)
+                        Text(e.name).type(.displayLg).foregroundStyle(Palette.ink)
                         Text("\(Fmt.weekdayLong.string(from: e.start)) · from \(Fmt.time.string(from: e.start))").type(.bodyLg).foregroundStyle(Palette.ink)
-                        Text([e.venue.short, e.venue.hall].compactMap { $0 }.joined(separator: " · ")).type(.bodyLg).foregroundStyle(Palette.inkSecondary)
+                        Text([e.venue.short, e.venue.hall].compactMap { $0 }.joined(separator: " · ")).type(.bodyLg).foregroundStyle(Palette.body)
                     }
                     .padding(.top, Space.lg)
 
@@ -293,15 +293,14 @@ struct SharedEventPageView: View {
                         }
                         GeometryReader { g in
                             ZStack(alignment: .leading) {
-                                Capsule().fill(Palette.ink.opacity(0.12))
-                                Capsule().fill(Palette.ink).frame(width: g.size.width * CGFloat(collected) / CGFloat(max(1, e.quoted)))
+                                RoundedRectangle(cornerRadius: Radius.xs, style: .continuous).fill(Palette.ink.opacity(0.12))
+                                RoundedRectangle(cornerRadius: Radius.xs, style: .continuous).fill(Palette.ink).frame(width: g.size.width * CGFloat(collected) / CGFloat(max(1, e.quoted)))
                             }
                         }.frame(height: 4)
                         Text((due.map { "\(Fmt.inr($0.amount)) \($0.due <= Cal.today ? "due now" : ($0.kind == .balance ? "on the day" : "by \(Fmt.dayMonth.string(from: $0.due))"))" }.joined(separator: " · ").nilIfEmpty ?? "Fully paid — thank you") + (v.upi.isEmpty ? "" : " · UPI \(v.upi)"))
-                            .type(.caption).foregroundStyle(Palette.inkMute).fixedSize(horizontal: false, vertical: true)
+                            .type(.caption).foregroundStyle(Palette.muted).fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(Space.lg).background(Palette.canvasCream, in: RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).strokeBorder(Palette.lemon.opacity(0.25), lineWidth: 1))
+                    .padding(Space.lg).background(Palette.surfaceSoft, in: RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
 
                     HStack(spacing: Space.sm) {
                         ForEach(1...3, id: \.self) { i in
@@ -310,10 +309,10 @@ struct SharedEventPageView: View {
                     }
 
                     HStack(spacing: Space.md) {
-                        Text(v.monogram).type(.headingSm).foregroundStyle(Palette.onPrimary).frame(width: 36, height: 36).background(Palette.brandDark, in: RoundedRectangle(cornerRadius: Radius.sm, style: .continuous))
+                        Text(v.monogram).type(.headingSm).foregroundStyle(Palette.onDark).frame(width: 36, height: 36).background(Palette.ink, in: RoundedRectangle(cornerRadius: Radius.sm, style: .continuous))
                         VStack(alignment: .leading, spacing: 2) {
                             Text("\(v.ownerName) · \(v.businessName)").type(.bodyMdStrong).foregroundStyle(Palette.ink).lineLimit(1).minimumScaleFactor(0.8)
-                            Text([v.phone.nilIfEmpty, v.area.nilIfEmpty].compactMap { $0 }.joined(separator: " · ")).type(.caption).foregroundStyle(Palette.inkMute).lineLimit(1).minimumScaleFactor(0.8)
+                            Text([v.phone.nilIfEmpty, v.area.nilIfEmpty].compactMap { $0 }.joined(separator: " · ")).type(.caption).foregroundStyle(Palette.muted).lineLimit(1).minimumScaleFactor(0.8)
                         }
                         .layoutPriority(1)
                         Spacer(minLength: Space.sm)
@@ -321,7 +320,7 @@ struct SharedEventPageView: View {
                             if let u = URL(string: "https://wa.me/\(Fmt.phoneDigits(v.phone))") { UIApplication.shared.open(u) }
                         } label: {
                             HStack(spacing: Space.xs) { Image(systemName: "bubble").font(.system(size: 14)); Text("Chat").type(.buttonSm) }
-                                .foregroundStyle(Palette.ink).padding(.horizontal, Space.md).frame(height: 40).overlay(Capsule().strokeBorder(Palette.ink, lineWidth: 1))
+                                .foregroundStyle(Palette.ink).padding(.horizontal, Space.md).frame(height: 40).overlay(RoundedRectangle(cornerRadius: Radius.sm, style: .continuous).strokeBorder(Palette.ink, lineWidth: 1))
                         }.buttonStyle(.plain)
                     }
                     .padding(.bottom, Space.xl)
@@ -349,17 +348,10 @@ struct SharedEventPageView: View {
         return s
     }
 
-    private var mesh: some View {
-        ZStack {
-            Palette.canvasCream
-            RadialGradient(colors: [Palette.primarySubdued.opacity(0.85), .clear], center: .init(x: 0.85, y: 0.12), startRadius: 0, endRadius: 320)
-            RadialGradient(colors: [Palette.magenta.opacity(0.42), .clear], center: .init(x: 0.25, y: 0.18), startRadius: 0, endRadius: 260)
-            RadialGradient(colors: [Palette.primarySoft.opacity(0.20), .clear], center: .init(x: 0.6, y: 0.3), startRadius: 0, endRadius: 300)
-            RadialGradient(colors: [Palette.ruby.opacity(0.14), .clear], center: .init(x: 0.1, y: 0.05), startRadius: 0, endRadius: 220)
-            RadialGradient(colors: [Palette.lemon.opacity(0.16), .clear], center: .init(x: 0.9, y: 0.35), startRadius: 0, endRadius: 240)
-            LinearGradient(colors: [.clear, Palette.canvasCream.opacity(0.7), Palette.canvasCream], startPoint: .init(x: 0.5, y: 0.25), endPoint: .init(x: 0.5, y: 0.6))
-        }
-    }
+    /// The gradient mesh was the previous skin's signature and has no Airbnb equivalent: an Airbnb listing page
+    /// is a white canvas where the photographs do the work. Still light in the dark wall on purpose — this is
+    /// the page a client opens from a WhatsApp link.
+    private var mesh: some View { Palette.canvas }
 
     private func section<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: Space.sm) {
@@ -371,7 +363,7 @@ struct SharedEventPageView: View {
         HStack(alignment: .firstTextBaseline) {
             Text(l).type(.bodyLg).foregroundStyle(Palette.ink)
             Spacer()
-            Text(r).type(.bodyLg).foregroundStyle(Palette.inkMute).monospacedDigit()
+            Text(r).type(.bodyLg).foregroundStyle(Palette.muted).monospacedDigit()
         }
     }
 }

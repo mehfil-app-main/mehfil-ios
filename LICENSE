@@ -1,0 +1,27 @@
+Copyright (c) 2026 Anish Biswal. All rights reserved.
+
+This software and its source code, design files, documentation and assets
+(together, the "Software") are proprietary and confidential.
+
+No licence is granted. Publication of this repository, at any time, on any
+platform, does not grant any person a licence to use, copy, modify, merge,
+publish, distribute, sublicense or sell the Software, in whole or in part, nor
+to create derivative works from it. Access to, or possession of, a copy of the
+Software confers no rights in it.
+
+Permission to use the Software may be granted only by a written agreement
+signed by the copyright holder.
+
+Third-party components retain their own licences. The Inter typeface is used
+under the SIL Open Font License 1.1 (see OFL-Inter.txt). Firebase, Google
+Sign-In and AndroidX/Jetpack libraries are used under their respective licences
+and are not covered by this notice.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Contact: biswalworkanish@gmail.com

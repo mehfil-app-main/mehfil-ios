@@ -43,10 +43,10 @@ private struct MButtonStyleImpl: ButtonStyle {
             .foregroundStyle(foreground(pressed))
             .padding(.horizontal, hp)
             .frame(minHeight: h)
-            .background(background(pressed), in: Capsule())
-            .overlay(Capsule().strokeBorder(border, lineWidth: 1))
+            .background(background(pressed), in: RoundedRectangle(cornerRadius: Radius.sm, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.sm, style: .continuous).strokeBorder(border, lineWidth: 1))
             .opacity(enabled ? 1 : (style == .primary ? 1 : 0.55))
-            .contentShape(Capsule())
+            .contentShape(RoundedRectangle(cornerRadius: Radius.sm, style: .continuous))
             .animation(.easeOut(duration: 0.12), value: pressed)
     }
     private func foreground(_ pressed: Bool) -> Color {
@@ -161,24 +161,53 @@ struct StatusChip: View {
 // MARK: - 07 Avatar / avatar stack
 
 struct Avatar: View {
+    /// Kept for call-site compatibility with stored records; the photo is no longer used.
     var index: Int?
     var name: String
     var size: CGFloat = Dim.avatar
     var muted = false
     var body: some View {
-        Group {
-            if let index {
-                Image("avatar-\(index)").resizable().scaledToFill()
-            } else {
-                ZStack {
-                    MColor.line
-                    Text(String(name.prefix(1))).type(.bodyMdStrong).foregroundStyle(MColor.textMute)
-                }
-            }
+        ZStack {
+            Initials.color(for: name)
+            Text(Initials.of(name))
+                .font(.custom("Inter-SemiBold", size: size * 0.38))
+                .foregroundStyle(.white)
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
         .opacity(muted ? 0.5 : 1)
+    }
+}
+
+/// Initials and a stable colour for a person, so the same name always looks the same on every device
+/// and on both platforms. Deliberately not random: a client's tile must not change between launches.
+enum Initials {
+    /// "Vikram Kapoor" → "VK" · "Ajay" → "A" · "" → "?"
+    static func of(_ name: String) -> String {
+        let words = name.split(separator: " ").filter { $0.first?.isLetter == true }
+        guard let first = words.first?.first else { return "?" }
+        if words.count > 1, let last = words.last?.first { return "\(first)\(last)".uppercased() }
+        return String(first).uppercased()
+    }
+
+    /// Eight hues that all carry white text at 4.5:1 or better, on brand with the Airbnb skin.
+    private static let hues: [Color] = [
+        Color(.sRGB, red: 0.75, green: 0.22, blue: 0.36, opacity: 1),   // rausch, deepened for contrast
+        Color(.sRGB, red: 0.57, green: 0.09, blue: 0.30, opacity: 1),   // plus
+        Color(.sRGB, red: 0.27, green: 0.02, blue: 0.47, opacity: 1),   // luxe
+        Color(.sRGB, red: 0.13, green: 0.35, blue: 0.62, opacity: 1),   // legal-link, deepened
+        Color(.sRGB, red: 0.11, green: 0.40, blue: 0.36, opacity: 1),   // teal
+        Color(.sRGB, red: 0.45, green: 0.30, blue: 0.13, opacity: 1),   // amber, deepened
+        Color(.sRGB, red: 0.30, green: 0.35, blue: 0.42, opacity: 1),   // slate
+        Color(.sRGB, red: 0.13, green: 0.13, blue: 0.13, opacity: 1),   // ink
+    ]
+
+    static func color(for name: String) -> Color {
+        guard !name.isEmpty else { return hues[7] }
+        // FNV-1a over the scalars: stable across launches, platforms and Swift versions.
+        var hash: UInt32 = 2166136261
+        for byte in name.lowercased().utf8 { hash = (hash ^ UInt32(byte)) &* 16777619 }
+        return hues[Int(hash % UInt32(hues.count))]
     }
 }
 
@@ -218,7 +247,7 @@ struct CommitmentBar: View {
                 if over { Rectangle().fill(MColor.danger).frame(width: ow) }
                 Rectangle().fill(MColor.line)
             }
-            .clipShape(Capsule())
+            .clipShape(RoundedRectangle(cornerRadius: Radius.xs, style: .continuous))
         }
         .frame(height: height)
     }
@@ -262,13 +291,13 @@ struct InputField: View {
                     .keyboardType(keyboard)
                     .textContentType(oneTimeCode ? .oneTimeCode : nil)
                     .focused($focused)
-                    .tint(MColor.accent)
+                    .tint(MColor.text)
                 if let trailing { Image(systemName: trailing).font(.system(size: 16)).foregroundStyle(MColor.textMute) }
             }
             .padding(.horizontal, Space.md)
             .frame(height: Dim.input)
             .background(MColor.surface, in: RoundedRectangle(cornerRadius: Radius.sm, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.sm, style: .continuous).strokeBorder(error != nil ? MColor.danger : (focused ? MColor.accent : MColor.lineInput), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: Radius.sm, style: .continuous).strokeBorder(error != nil ? MColor.danger : (focused ? MColor.text : MColor.lineInput), lineWidth: 1))
             .contentShape(Rectangle())
             .onTapGesture { focused = true }
             if let error { Text(error).type(.caption).foregroundStyle(MColor.danger) }
@@ -325,7 +354,7 @@ struct AmountInput: View {
             .padding(.horizontal, Space.lg)
             .frame(height: Dim.amountInput)
             .background(MColor.surface, in: RoundedRectangle(cornerRadius: Radius.sm, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.sm, style: .continuous).strokeBorder(error != nil ? MColor.danger : (focused ? MColor.accent : MColor.lineInput), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: Radius.sm, style: .continuous).strokeBorder(error != nil ? MColor.danger : (focused ? MColor.text : MColor.lineInput), lineWidth: 1))
             if let error { Text(error).type(.caption).foregroundStyle(MColor.danger) }
         }
     }

@@ -243,17 +243,14 @@ struct VendorProfile: Codable, Hashable {
     var notifyConflicts: Bool
     var notifyChanges: Bool
     var createdAt: Date
-    /// True once the number was confirmed with an OTP and linked to the account (optional for older documents).
-    var phoneVerified: Bool?
 
-    var isPhoneVerified: Bool { phoneVerified ?? false }
     var ownerFirstName: String { ownerName.split(separator: " ").first.map(String.init) ?? ownerName }
     var monogram: String { String(businessName.prefix(1)).uppercased() }
 
-    static func new(owner: String, business: String, phone: String, phoneVerified: Bool = false, area: String) -> VendorProfile {
+    static func new(owner: String, business: String, phone: String, area: String) -> VendorProfile {
         VendorProfile(ownerName: owner, businessName: business, phone: phone, area: area, since: "since \(Cal.year(Cal.today))",
                       upi: "", bankLabel: "", seasonTarget: 6_000_000, lastSeasonBooked: nil, lastSeasonEvents: nil,
-                      notifyPayments: true, notifyConflicts: true, notifyChanges: true, createdAt: Cal.today, phoneVerified: phoneVerified)
+                      notifyPayments: true, notifyConflicts: true, notifyChanges: true, createdAt: Cal.today)
     }
 }
 

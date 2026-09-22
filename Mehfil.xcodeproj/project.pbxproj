@@ -120,12 +120,12 @@
 			);
 			mainGroup = AA1000032BCD00030000A003;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
-			productRefGroup = AA1000042BCD00040000A004 /* Products */;
 			packageReferences = (
 				AA2000012BCD00010000B001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				AA2000022BCD00020000B002 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = AA1000042BCD00040000A004 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -295,11 +295,13 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Mehfil/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Mehfil;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -324,11 +326,13 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Mehfil/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Mehfil;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -343,6 +347,27 @@
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA1000072BCD00070000A007 /* Build configuration list for PBXNativeTarget "Mehfil" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA10000E2BCD000E0000A00E /* Debug */,
+				AA10000F2BCD000F0000A00F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA10000B2BCD000B0000A00B /* Build configuration list for PBXProject "Mehfil" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA10000C2BCD000C0000A00C /* Debug */,
+				AA10000D2BCD000D0000A00D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		AA2000012BCD00010000B001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
@@ -380,27 +405,6 @@
 			productName = GoogleSignIn;
 		};
 /* End XCSwiftPackageProductDependency section */
-
-/* Begin XCConfigurationList section */
-		AA1000072BCD00070000A007 /* Build configuration list for PBXNativeTarget "Mehfil" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				AA10000E2BCD000E0000A00E /* Debug */,
-				AA10000F2BCD000F0000A00F /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		AA10000B2BCD000B0000A00B /* Build configuration list for PBXProject "Mehfil" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				AA10000C2BCD000C0000A00C /* Debug */,
-				AA10000D2BCD000D0000A00D /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-/* End XCConfigurationList section */
 	};
 	rootObject = AA10000A2BCD000A0000A00A /* Project object */;
 }
