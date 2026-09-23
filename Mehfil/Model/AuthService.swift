@@ -43,6 +43,7 @@ enum AuthError: LocalizedError {
 
 /// Firebase Auth when the build has a config; otherwise a single on-device account so the app still works.
 @Observable
+@MainActor
 final class AuthService {
     enum State: Equatable { case loading, signedOut, signedIn(Account) }
     private(set) var state: State = .loading
@@ -104,7 +105,6 @@ final class AuthService {
     }
 
     /// Creates the account, stores the owner's name on it and sends the verification email.
-    @MainActor
     func signUp(email: String, password: String, name: String) async throws {
         guard isCloud else { throw AuthError.notConfigured }
         let result = try await Auth.auth().createUser(withEmail: email.trimmingCharacters(in: .whitespaces), password: password)
@@ -118,7 +118,6 @@ final class AuthService {
         state = .signedIn(Self.account(from: result.user))
     }
 
-    @MainActor
     func signIn(email: String, password: String) async throws {
         guard isCloud else { throw AuthError.notConfigured }
         let result = try await Auth.auth().signIn(withEmail: email.trimmingCharacters(in: .whitespaces), password: password)
@@ -175,7 +174,6 @@ final class AuthService {
 
     // MARK: Sign in with Apple
 
-    @MainActor
     func signInWithApple() async throws {
         guard isCloud else { throw AuthError.notConfigured }
         let nonce = Self.randomNonce()
@@ -190,7 +188,6 @@ final class AuthService {
         }
     }
 
-    @MainActor
     private func requestApple(nonce: String) async throws -> (ASAuthorizationAppleIDCredential, String?) {
         let request = ASAuthorizationAppleIDProvider().createRequest()
         request.requestedScopes = [.fullName, .email]
@@ -203,7 +200,6 @@ final class AuthService {
 
     // MARK: Google
 
-    @MainActor
     func signInWithGoogle() async throws {
         guard isCloud else { throw AuthError.notConfigured }
         guard let presenter = Self.topViewController() else { throw AuthError.noPresenter }
@@ -231,7 +227,6 @@ final class AuthService {
     /// Sign in with Apple token, as App Store Review requires. The caller deletes the vendor's data beforehand.
     ///
     /// `password` is required only for email/password accounts — the UI asks for it before calling.
-    @MainActor
     func deleteAccount(password: String? = nil) async throws {
         guard isCloud else { UserDefaults.standard.set(false, forKey: Self.localKey); state = .signedOut; return }
         guard let user = Auth.auth().currentUser else { return }
@@ -269,7 +264,6 @@ final class AuthService {
     private static func sha256(_ input: String) -> String {
         SHA256.hash(data: Data(input.utf8)).map { String(format: "%02x", $0) }.joined()
     }
-    @MainActor
     private static func topViewController() -> UIViewController? {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         guard var top = scenes.flatMap(\.windows).first(where: \.isKeyWindow)?.rootViewController else { return nil }
@@ -282,7 +276,6 @@ final class AuthService {
 final class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
     private var continuation: CheckedContinuation<(ASAuthorizationAppleIDCredential, String?), Error>?
 
-    @MainActor
     func perform(_ request: ASAuthorizationAppleIDRequest) async throws -> (ASAuthorizationAppleIDCredential, String?) {
         try await withCheckedThrowingContinuation { cont in
             continuation = cont
@@ -309,7 +302,9 @@ final class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate,
         continuation = nil
     }
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows).first(where: \.isKeyWindow) ?? ASPresentationAnchor()
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        // Falling back to a detached window would present into nothing; the key window is the only valid anchor.
+        return scenes.flatMap(\.windows).first(where: \.isKeyWindow) ?? scenes.first?.keyWindow ?? ASPresentationAnchor(windowScene: scenes[0])
     }
 }
 
