@@ -32,6 +32,10 @@ enum Cal {
         calendar.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min))!
     }
     static func sameDay(_ a: Date, _ b: Date) -> Bool { calendar.isDate(a, inSameDayAs: b) }
+    /// The given wall-clock hour on `day`, used for the default event window.
+    static func setting(hour: Int, on day: Date) -> Date {
+        calendar.date(bySettingHour: hour, minute: 0, second: 0, of: startOfDay(day)) ?? startOfDay(day)
+    }
     static func startOfDay(_ d: Date) -> Date { calendar.startOfDay(for: d) }
     static func adding(_ n: Int, _ unit: Calendar.Component, to d: Date) -> Date { calendar.date(byAdding: unit, value: n, to: d)! }
     static func daysBetween(_ a: Date, _ b: Date) -> Int {

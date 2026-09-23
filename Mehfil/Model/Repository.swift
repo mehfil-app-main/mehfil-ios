@@ -13,12 +13,21 @@ enum Coll {
 }
 
 /// Storage behind the app. Firestore in production; a JSON file on device when the build has no Firebase config.
+/// Storage behind the app.
+///
+/// Isolated to the main actor: every caller is the `@MainActor` store, and the implementations hold mutable
+/// state that would otherwise cross actor boundaries. The blocking work inside — file decoding — hops to a
+/// background task explicitly, so nothing long-running actually runs on the main thread.
+@MainActor
 protocol Repository: AnyObject {
     var isCloud: Bool { get }
     func profile(uid: String) async throws -> VendorProfile?
     func saveProfile(uid: String, _ profile: VendorProfile) async throws
     /// Starts streaming the vendor's data; `onChange` receives the full picture after every change (local or remote).
-    func observe(uid: String, onChange: @escaping @MainActor (VendorData) -> Void)
+    /// Starts streaming the vendor's data; `onChange` receives the full picture after every change.
+    /// Asynchronous because the on-device implementation has to read and decode a file before the first
+    /// emission, and that must not block the main actor.
+    func observe(uid: String, onChange: @escaping @MainActor (VendorData) -> Void) async
     func stopObserving()
     func write(uid: String, _ ops: [WriteOp]) async throws
     func deleteEverything(uid: String) async throws
@@ -36,6 +45,7 @@ enum Backend {
 
 // MARK: - Local repository (device only). Used for development builds and for the on-device demo.
 
+@MainActor
 final class LocalRepository: Repository {
     let isCloud = false
     private var data = VendorData()
@@ -57,7 +67,10 @@ final class LocalRepository: Repository {
     func saveProfile(uid: String, _ profile: VendorProfile) async throws {
         try encoder.encode(profile).write(to: dir(uid).appendingPathComponent("profile.json"), options: .atomic)
     }
-    func observe(uid: String, onChange: @escaping @MainActor (VendorData) -> Void) {
+    /// Starts streaming the vendor's data; `onChange` receives the full picture after every change.
+    /// Asynchronous because the on-device implementation has to read and decode a file before the first
+    /// emission, and that must not block the main actor.
+    func observe(uid: String, onChange: @escaping @MainActor (VendorData) -> Void) async {
         self.uid = uid; self.onChange = onChange
         if let d = try? Data(contentsOf: dir(uid).appendingPathComponent("data.json")), let v = try? decoder.decode(VendorData.self, from: d) { data = v } else { data = VendorData() }
         let snapshot = data

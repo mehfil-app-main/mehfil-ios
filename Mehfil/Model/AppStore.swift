@@ -54,7 +54,7 @@ final class AppStore {
     private(set) var uid: String?
     private(set) var vendor: VendorProfile?
     private(set) var profileChecked = false
-    private(set) var data = VendorData()
+    private(set) var data = VendorData() { didSet { cachedView = nil } }
     private(set) var loaded = false
 
     // Navigation
@@ -64,7 +64,15 @@ final class AppStore {
 
     // Settings
     var appearance: Appearance { didSet { UserDefaults.standard.set(appearance.rawValue, forKey: "appearance") } }
+    @ObservationIgnored private var dismissToastTask: Task<Void, Never>?
+
     var draft: EventDraft { didSet { if let d = try? JSONEncoder().encode(draft) { UserDefaults.standard.set(d, forKey: "eventDraft") } } }
+
+    deinit {
+        // The repository releases its own snapshot listeners when it is deallocated with this store; a
+        // nonisolated deinit cannot safely reach main-actor state to do it here.
+        dismissToastTask?.cancel()
+    }
 
     init(repo: Repository) {
         self.repo = repo
@@ -79,9 +87,9 @@ final class AppStore {
     func bind(uid: String) async {
         guard self.uid != uid else { return }
         self.uid = uid; profileChecked = false; loaded = false; vendor = nil; data = VendorData()
-        do { vendor = try await repo.profile(uid: uid) } catch { show(.error, "Couldn't load your profile: \(error.localizedDescription)") }
+        do { vendor = try await repo.profile(uid: uid) } catch { report(error, String(localized: "error.loadProfile", defaultValue: "Couldn't load your business details.")) }
         profileChecked = true
-        repo.observe(uid: uid) { [weak self] snapshot in
+        await repo.observe(uid: uid) { [weak self] snapshot in
             guard let self else { return }
             self.data = snapshot
             self.loaded = true
@@ -109,13 +117,13 @@ final class AppStore {
             }
             try await repo.saveProfile(uid: uid, p)
             vendor = p
-        } catch { show(.error, "Couldn't save your profile: \(error.localizedDescription)") }
+        } catch { report(error, String(localized: "error.saveProfile", defaultValue: "Couldn't save your business details.")) }
     }
 
     func updateProfile(_ change: (inout VendorProfile) -> Void) {
         guard let uid, var p = vendor else { return }
         change(&p); vendor = p
-        Task { do { try await repo.saveProfile(uid: uid, p) } catch { show(.error, "Couldn't save: \(error.localizedDescription)") } }
+        Task { do { try await repo.saveProfile(uid: uid, p) } catch { report(error, String(localized: "error.save", defaultValue: "Couldn't save that. Try again.")) } }
     }
 
     /// Deletes exactly the records the sample season wrote. Its ids are fixed ("kapoor", "kapoor-sangeet", …),
@@ -127,13 +135,13 @@ final class AppStore {
             return op
         }
         do { try await repo.write(uid: uid, deletes); show(.success, "Sample season removed") }
-        catch { show(.error, "Couldn't remove it: \(error.localizedDescription)") }
+        catch { report(error, String(localized: "error.removeSample", defaultValue: "Couldn't remove the sample season.")) }
     }
 
     func loadSampleSeason() async {
         guard let uid else { return }
         do { try await repo.write(uid: uid, SampleSeason.data().asWrites); show(.success, "Sample season loaded") }
-        catch { show(.error, "Couldn't load the sample: \(error.localizedDescription)") }
+        catch { report(error, String(localized: "error.loadSample", defaultValue: "Couldn't load the sample season.")) }
     }
 
     func eraseAllData() async throws {
@@ -145,7 +153,7 @@ final class AppStore {
         guard let uid else { return }
         Task {
             do { try await repo.write(uid: uid, ops); if let success { show(.success, success) } }
-            catch { show(.error, "Couldn't save: \(error.localizedDescription)") }
+            catch { report(error, String(localized: "error.save", defaultValue: "Couldn't save that. Try again.")) }
         }
     }
     private func save(_ op: WriteOp, success: String? = nil) { save([op], success: success) }
@@ -165,101 +173,99 @@ final class AppStore {
 
     func show(_ kind: Toast.Kind, _ message: String) {
         withAnimation(.spring(duration: 0.35)) { toast = Toast(kind: kind, message: message) }
-        let current = toast
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) { [weak self] in
-            if self?.toast == current { withAnimation(.easeOut(duration: 0.25)) { self?.toast = nil } }
+        // A structured task rather than asyncAfter: a rapid sequence of toasts used to leave one pending
+        // timer per toast, and none of them were cancellable.
+        dismissToastTask?.cancel()
+        dismissToastTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.toastDuration))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.25)) { self?.toast = nil }
         }
     }
 
-    // MARK: Collections
+    /// Reports a failure the vendor can act on and logs the detail. The underlying error is deliberately not
+    /// shown: it is untranslatable and exposes storage internals.
+    private func report(_ error: Error, _ fallback: String) {
+        let classified = AppError(error)
+        Log.store.warning("Operation failed: \(String(describing: classified), privacy: .public)")
+        show(.error, classified.message(fallback: fallback))
+    }
 
-    var events: [Event] { data.events }
-    var clients: [Client] { data.clients }
-    var milestones: [Milestone] { data.milestones }
-    var crew: [CrewMember] { data.crew.sorted { ($0.role.rawValue, $0.name) < ($1.role.rawValue, $1.name) } }
-    var inventory: [InventoryItem] { data.inventory }
-    var tasks: [RunsheetTask] { data.tasks.sorted { $0.order < $1.order } }
-    var reminders: [SentReminder] { data.reminders }
-    var expenses: [Expense] { data.expenses }
-    var enquiries: [Enquiry] { data.enquiries.sorted { $0.createdAt > $1.createdAt } }
-    var packages: [Package] { data.packages }
-    var changeRequests: [ChangeRequest] { data.changeRequests }
+    private static let toastDuration: Double = 2.8
 
-    func event(_ id: String) -> Event? { events.first { $0.id == id } }
-    func client(_ id: String) -> Client? { clients.first { $0.id == id } }
-    func client(for event: Event) -> Client? { client(event.clientId) }
-    func member(_ id: String) -> CrewMember? { crew.first { $0.id == id } }
-    func item(_ id: String) -> InventoryItem? { inventory.first { $0.id == id } }
-    func enquiry(_ id: String) -> Enquiry? { enquiries.first { $0.id == id } }
-    func milestones(for eventId: String) -> [Milestone] { milestones.filter { $0.eventId == eventId }.sorted { $0.due < $1.due } }
-    func expenses(for eventId: String) -> [Expense] { expenses.filter { $0.eventId == eventId } }
-    func reminders(for milestoneId: String) -> [SentReminder] { reminders.filter { $0.milestoneId == milestoneId }.sorted { $0.sentAt < $1.sentAt } }
-    func pendingChangeRequest(for eventId: String) -> ChangeRequest? { changeRequests.first { $0.eventId == eventId && $0.status == .pending } }
-    func changeRequest(_ id: String) -> ChangeRequest? { changeRequests.first { $0.id == id } }
+    /// The read model, rebuilt only when `data` changes rather than on every SwiftUI evaluation.
+    ///
+    /// `@ObservationIgnored` keeps the cache itself out of observation: the screens observe `data`, and this
+    /// is derived from it. Without the cache, `crew` re-sorted the roster and `overdue` re-filtered every
+    /// milestone on each read, several times per frame.
+    @ObservationIgnored private var cachedView: VendorView?
 
-    var upcomingEvents: [Event] { events.filter { $0.status == .upcoming }.sorted { $0.start < $1.start } }
-    var completedEvents: [Event] { events.filter { $0.status == .completed }.sorted { $0.start > $1.start } }
-    var openEnquiries: [Enquiry] { enquiries.filter { $0.status == .open } }
-    func events(on day: Date) -> [Event] { events.filter { Cal.sameDay($0.start, day) && $0.status != .cancelled }.sorted { $0.start < $1.start } }
-    func events(inMonth month: Int, year: Int) -> [Event] {
-        events.filter { $0.status != .cancelled && Cal.month($0.start) == month && Cal.year($0.start) == year }.sorted { $0.start < $1.start }
+    var view: VendorView {
+        if let cachedView { return cachedView }
+        let fresh = VendorView(data)
+        cachedView = fresh
+        return fresh
     }
-    /// Events on the same day with overlapping hours (A3, B3, E3 conflict checks).
-    func conflicts(on day: Date) -> [Event] {
-        let list = events(on: day)
-        return list.filter { e in list.contains { $0.id != e.id && $0.start < e.end && e.start < $0.end } }
-    }
-    private func overlap(_ a: Event, _ b: Event) -> Bool { a.id != b.id && a.start < b.end && b.start < a.end }
 
-    /// A crew conflict is a fact about bookings: someone is booked on two events that overlap in time.
-    func isConflicted(_ e: Event) -> Bool {
-        guard e.status == .upcoming else { return false }
-        return crew.contains { m in m.bookings.contains(e.id) && m.bookings.contains { other in event(other).map { overlap(e, $0) } ?? false } }
-    }
-    /// The first double-booking in the season: (event, other event, member).
-    var seasonConflict: (Event, Event, CrewMember)? {
-        for m in crew {
-            let booked = m.bookings.compactMap { event($0) }.filter { $0.status == .upcoming && $0.start >= Cal.startOfDay(Cal.today) }.sorted { $0.start < $1.start }
-            for a in booked { if let b = booked.first(where: { overlap(a, $0) }) { return (a, b, m) } }
-        }
-        return nil
-    }
-    func crewOnDuty(_ day: Date) -> Int {
-        let ids = Set(events(on: day).map(\.id))
-        return crew.filter { m in m.bookings.contains { ids.contains($0) } }.count
-    }
+    // Collections and lookups delegate to the read model. The rules live in VendorView, which is a plain
+    // struct with no SwiftUI or Firebase dependency and is covered by unit tests; this class stays
+    // responsible for session, navigation, persistence and user feedback.
+
+    var events: [Event] { view.events }
+    var clients: [Client] { view.clients }
+    var milestones: [Milestone] { view.milestones }
+    var crew: [CrewMember] { view.crew }
+    var inventory: [InventoryItem] { view.inventory }
+    var tasks: [RunsheetTask] { view.tasks }
+    var reminders: [SentReminder] { view.reminders }
+    var expenses: [Expense] { view.expenses }
+    var enquiries: [Enquiry] { view.enquiries }
+    var packages: [Package] { view.packages }
+    var changeRequests: [ChangeRequest] { view.changeRequests }
+
+    func event(_ id: String) -> Event? { view.event(id) }
+    func client(_ id: String) -> Client? { view.client(id) }
+    func client(for event: Event) -> Client? { view.client(for: event) }
+    func member(_ id: String) -> CrewMember? { view.member(id) }
+    func item(_ id: String) -> InventoryItem? { view.item(id) }
+    func enquiry(_ id: String) -> Enquiry? { view.enquiry(id) }
+    func milestones(for eventId: String) -> [Milestone] { view.milestones(for: eventId) }
+    func expenses(for eventId: String) -> [Expense] { view.expenses(for: eventId) }
+    func reminders(for milestoneId: String) -> [SentReminder] { view.reminders(for: milestoneId) }
+    func pendingChangeRequest(for eventId: String) -> ChangeRequest? { view.pendingChangeRequest(for: eventId) }
+    func changeRequest(_ id: String) -> ChangeRequest? { view.changeRequest(id) }
+
+    var upcomingEvents: [Event] { view.upcomingEvents }
+    var completedEvents: [Event] { view.completedEvents }
+    var openEnquiries: [Enquiry] { view.openEnquiries }
+    func events(on day: Date) -> [Event] { view.events(on: day) }
+    func events(inMonth month: Int, year: Int) -> [Event] { view.eventsIn(month: month, year: year) }
+    func conflicts(on day: Date) -> [Event] { view.conflicts(on: day) }
+    func isConflicted(_ e: Event) -> Bool { view.isConflicted(e) }
+    var seasonConflict: (Event, Event, CrewMember)? { view.seasonConflict }
+    func crewOnDuty(_ day: Date) -> Int { view.crewOnDuty(on: day) }
+    /// The member double-booked across this event and another that day, or nil when the day is clean.
+    func conflictedMember(for e: Event) -> CrewMember? { view.conflictedMember(for: e) }
 
     // MARK: Money
 
-    func paymentState(for event: Event) -> PaymentState {
-        let ms = milestones(for: event.id)
-        if ms.contains(where: { $0.effectiveStatus == .overdue }) { return .overdue }
-        if ms.allSatisfy({ $0.status == .paid }) && !ms.isEmpty { return .paid }
-        if ms.contains(where: { $0.status == .paid }) { return .partial }
-        return .pending
-    }
-    func collected(for eventId: String) -> Int { milestones(for: eventId).filter { $0.status == .paid }.reduce(0) { $0 + $1.amount } }
-    func balanceDue(for eventId: String) -> Int { milestones(for: eventId).filter { $0.isOpen }.reduce(0) { $0 + $1.amount } }
-    func overdueAmount(for eventId: String) -> Int { milestones(for: eventId).filter { $0.effectiveStatus == .overdue }.reduce(0) { $0 + $1.amount } }
-
-    var openMilestones: [Milestone] { milestones.filter { $0.isOpen && event($0.eventId)?.status != .cancelled }.sorted { $0.due < $1.due } }
-    var overdue: [Milestone] {
-        openMilestones.filter { $0.effectiveStatus == .overdue }
-            .sorted { (event($0.eventId)?.start ?? $0.due) < (event($1.eventId)?.start ?? $1.due) }
-    }
-    var dueThisWeek: [Milestone] {
-        let w = Cal.thisWeek
-        return openMilestones.filter { $0.effectiveStatus != .overdue && w.contains($0.due) }
-    }
-    var upcomingMilestones: [Milestone] { openMilestones.filter { $0.effectiveStatus != .overdue && !dueThisWeek.contains($0) } }
-    var totalOutstanding: Int { openMilestones.reduce(0) { $0 + $1.amount } }
-    var overdueTotal: Int { overdue.reduce(0) { $0 + $1.amount } }
-    var eventsWithOpenMoney: Int { Set(openMilestones.map(\.eventId)).count }
-    var overdueSurnames: String {
-        var seen: [String] = []
-        for m in overdue.sorted(by: { $0.amount > $1.amount }) { if let e = event(m.eventId), !seen.contains(e.surname) { seen.append(e.surname) } }
-        return seen.joined(separator: ", ")
-    }
+    func paymentState(for event: Event) -> PaymentState { view.paymentState(event) }
+    func collected(for eventId: String) -> Int { view.collected(for: eventId) }
+    func balanceDue(for eventId: String) -> Int { view.balanceDue(for: eventId) }
+    func overdueAmount(for eventId: String) -> Int { view.overdueAmount(for: eventId) }
+    var openMilestones: [Milestone] { view.openMilestones }
+    var overdue: [Milestone] { view.overdue }
+    var dueThisWeek: [Milestone] { view.dueThisWeek }
+    var upcomingMilestones: [Milestone] { view.upcomingMilestones }
+    var totalOutstanding: Int { view.totalOutstanding }
+    var overdueTotal: Int { view.overdueTotal }
+    var eventsWithOpenMoney: Int { view.eventsWithOpenMoney }
+    var overdueSurnames: String { view.overdueSurnames }
+    var lifetimeValue: Int { view.lifetimeValue }
+    func stats(for c: Client) -> ClientStats { view.stats(for: c) }
+    func attendance(for eventId: String) -> [String: AttendanceState] { view.attendance(for: eventId) }
+    func assignedCrew(for eventId: String) -> [CrewMember] { view.assignedCrew(eventId) }
+    var season: SeasonSummary { view.season }
 
     func recordPayment(milestoneId: String, amount: Int, method: PaymentMethod, date: Date, reference: String?) {
         guard var m = milestones.first(where: { $0.id == milestoneId }) else { return }
@@ -288,16 +294,7 @@ final class AppStore {
     /// Composed reminder copy — real text for each tone (spec C4).
     func reminderMessage(for m: Milestone, tone: ReminderTone) -> String {
         guard let e = event(m.eventId), let c = client(for: e), let v = vendor else { return "" }
-        let first = c.firstName, amount = Fmt.inr(m.amount), due = Fmt.dayMonthLong.string(from: m.due), eventDate = Fmt.dayMonthLong.string(from: e.start), name = m.name.lowercased()
-        let pay = v.upi.isEmpty ? "by bank transfer" : "by UPI to \(v.upi) or by bank transfer"
-        switch tone {
-        case .gentle:
-            return "Hi \(first), hope the preparations are going well! Just a gentle nudge — the \(name) of \(amount) for the \(e.type.rawValue) was due on \(due). Whenever convenient this week works. Thanks so much — \(v.ownerFirstName), \(v.businessName)"
-        case .standard:
-            return "Hi \(first), a reminder that the \(name) of \(amount) for the \(e.type.rawValue) on \(eventDate) was due on \(due). You can pay \(pay). Thank you — \(v.ownerFirstName), \(v.businessName)"
-        case .firm:
-            return "\(first), the \(name) of \(amount) for the \(e.type.rawValue) on \(eventDate) is \(Fmt.daysLate(m.due)) days overdue. We need it cleared by tomorrow to hold the crew and inventory for your date. Please pay \(v.upi.isEmpty ? "today" : "by UPI to \(v.upi) today"). — \(v.ownerFirstName), \(v.businessName)"
-        }
+        return ReminderComposer.message(tone: tone, milestone: m, event: e, client: c, vendor: v)
     }
 
     func addExpense(eventId: String, name: String, detail: String, amount: Int) {
@@ -346,29 +343,19 @@ final class AppStore {
         save(.set(collection: Coll.changeRequests, id: cr.id, value: cr), success: "Change declined")
     }
     /// Builds a change request from a guest delta using the vendor's actual holds and roster (B6 reasoning).
+    /// Builds and stores a costed change request. The pricing lives in `ChangeRequestPricing` so the rates
+    /// are visible and testable; this only decides which helpers are actually free on the day.
     func logChangeRequest(eventId: String, guestsDelta: Int, via: String) -> ChangeRequest? {
         guard let e = event(eventId) else { return nil }
-        let day = e.day
-        var impacts: [ChangeImpact] = []; var added = 0
-        if let chairs = inventory.first(where: { $0.name.localizedCaseInsensitiveContains("chair") }) {
-            let c = chairs.committed(on: day), new = c + guestsDelta
-            if new > chairs.total { let hire = new - chairs.total; added += hire * 40; impacts.append(ChangeImpact(resource: chairs.name, detail: "All \(chairs.total) held · hire \(hire) more", delta: "+\(guestsDelta) · \(Fmt.inr(hire * 40))", isShort: true, icon: "inventory")) }
-            else { impacts.append(ChangeImpact(resource: chairs.name, detail: "\(c) → \(new) of \(chairs.total) held on \(Fmt.dayMonth.string(from: day))", delta: "+\(guestsDelta)", isShort: false, icon: "inventory")) }
+        let free = crew.filter { member in
+            member.role == .helper && !member.bookings.contains { id in
+                event(id).map { Cal.sameDay($0.start, e.start) } ?? false
+            }
         }
-        if let tables = inventory.first(where: { $0.name.localizedCaseInsensitiveContains("table") }) {
-            let extra = Int((Double(guestsDelta) / 10).rounded(.up)), c = tables.committed(on: day), new = c + extra
-            if new > tables.total { let hire = new - tables.total; added += hire * 400; impacts.append(ChangeImpact(resource: tables.name, detail: "All \(tables.total) held · hire \(hire) more", delta: "+\(extra) · \(Fmt.inr(hire * 400))", isShort: true, icon: "inventory")) }
-            else { impacts.append(ChangeImpact(resource: tables.name, detail: "\(c) → \(new) of \(tables.total) held", delta: "+\(extra)", isShort: false, icon: "inventory")) }
-        }
-        let helpers = max(1, guestsDelta / 50)
-        let free = crew.filter { $0.role == .helper && !$0.bookings.contains(where: { id in event(id).map { overlap(e, $0) || Cal.sameDay($0.start, e.start) } ?? false }) }.prefix(helpers)
-        let helperCost = helpers * (free.first?.dayRate ?? CrewRole.helper.defaultDayRate); added += helperCost
-        impacts.append(ChangeImpact(resource: "Helpers", detail: free.isEmpty ? "Hire \(helpers) day-wage" : free.map(\.firstName).joined(separator: ", "), delta: "+\(helpers) · \(Fmt.inr(helperCost))", isShort: free.count < helpers, icon: "people"))
-        if impacts.contains(where: \.isShort) || guestsDelta >= 150 { added += 4_500; impacts.append(ChangeImpact(resource: "Transport", detail: "Second truck, chairs and tables", delta: Fmt.inr(4_500), isShort: false, icon: "transport")) }
-        let perGuest = max(200, e.guests == 0 ? 350 : (e.quoted / e.guests) / 4)
-        let revised = ((e.quoted + guestsDelta * perGuest) / 1000) * 1000
-        let cr = ChangeRequest(id: Cal.newId(), eventId: e.id, summary: "Add \(guestsDelta) guests. \(e.guests) becomes \(e.guests + guestsDelta).", guestsDelta: guestsDelta, impacts: impacts,
-                               addedCost: added, revisedQuote: revised, perGuest: perGuest, status: .pending, requestedAt: Cal.today, via: via)
+        let cr = ChangeRequestPricing.price(
+            event: e, guestsDelta: guestsDelta, inventory: inventory,
+            availableHelpers: free, via: via
+        )
         save(.set(collection: Coll.changeRequests, id: cr.id, value: cr))
         return cr
     }
@@ -425,13 +412,6 @@ final class AppStore {
 
     // MARK: Clients
 
-    struct ClientStats { var eventCount: Int; var lifetimeValue: Int; var nextEventDate: Date? }
-    func stats(for c: Client) -> ClientStats {
-        let evs = events.filter { $0.clientId == c.id && $0.status != .cancelled }
-        let next = evs.filter { $0.status == .upcoming && $0.start >= Cal.startOfDay(Cal.today) }.map(\.start).min()
-        return ClientStats(eventCount: evs.count, lifetimeValue: evs.reduce(0) { $0 + $1.quoted }, nextEventDate: next)
-    }
-    var lifetimeValue: Int { events.filter { $0.status != .cancelled }.reduce(0) { $0 + $1.quoted } }
 
     // MARK: Enquiries
 
@@ -449,13 +429,11 @@ final class AppStore {
 
     // MARK: Crew
 
-    func attendance(for eventId: String) -> [String: AttendanceState] { data.attendance.first { $0.id == eventId }?.states ?? [:] }
     func cycleAttendance(eventId: String, crewId: String) {
         var a = data.attendance.first { $0.id == eventId } ?? Attendance(id: eventId, states: [:])
         a.states[crewId] = (a.states[crewId] ?? .confirmed).next
         save(.set(collection: Coll.attendance, id: a.id, value: a))
     }
-    func assignedCrew(for eventId: String) -> [CrewMember] { crew.filter { $0.bookings.contains(eventId) } }
     func toggleAssignment(crewId: String, eventId: String) {
         guard var m = member(crewId), var e = event(eventId) else { return }
         let on = m.bookings.contains(eventId)
@@ -495,15 +473,4 @@ final class AppStore {
 
     // MARK: Season
 
-    struct SeasonSummary { var booked: Int; var count: Int; var months: [(String, Int)]; var label: String }
-    var season: SeasonSummary {
-        let start = Cal.seasonStart(containing: Cal.today)
-        let end = Cal.adding(5, .month, to: start)
-        let inSeason = events.filter { $0.status != .cancelled && $0.start >= start && $0.start < end }
-        let months = (0..<5).map { i -> (String, Int) in
-            let m = Cal.adding(i, .month, to: start)
-            return (Fmt.monthShort.string(from: m), inSeason.filter { Cal.month($0.start) == Cal.month(m) && Cal.year($0.start) == Cal.year(m) }.reduce(0) { $0 + $1.quoted })
-        }
-        return SeasonSummary(booked: inSeason.reduce(0) { $0 + $1.quoted }, count: inSeason.count, months: months, label: Cal.seasonLabel(containing: Cal.today))
-    }
 }

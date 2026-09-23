@@ -88,7 +88,14 @@ struct Milestone: Identifiable, Codable, Hashable {
     var reference: String?
     var isOpen: Bool { status != .paid }
     /// Overdue is a fact about the date, not a stored flag.
-    var effectiveStatus: MilestoneStatus { status == .pending && due < Cal.startOfDay(Cal.today) ? .overdue : status }
+    /// Overdue is derived, never stored, so a milestone cannot go stale. Takes the date to judge against:
+    /// reading the clock in here made the rule impossible to pin in a test and let one view disagree with
+    /// the next across midnight. `VendorView` passes its own `today` so a whole screen stays consistent.
+    func effectiveStatus(on today: Date) -> MilestoneStatus {
+        status == .pending && due < Cal.startOfDay(today) ? .overdue : status
+    }
+
+    var effectiveStatus: MilestoneStatus { effectiveStatus(on: Cal.today) }
 }
 
 enum ReminderTone: String, CaseIterable, Identifiable, Codable {

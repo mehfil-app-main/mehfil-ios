@@ -3,10 +3,13 @@ import FirebaseFirestore
 
 /// Cloud Firestore behind the Repository protocol. Layout: vendors/{uid} + one subcollection per Coll.* name.
 /// Offline persistence is on, so writes land locally first and the listeners fire immediately.
+@MainActor
 final class FirestoreRepository: Repository {
     let isCloud = true
     private let db: Firestore
-    private var listeners: [ListenerRegistration] = []
+    /// Registrations live in their own box so they can be released from `deinit`, which is nonisolated and
+    /// therefore cannot touch main-actor state. Removing a registration is safe from any thread.
+    private let listeners = ListenerBag()
     private var data = VendorData()
 
     init() {
@@ -29,20 +32,24 @@ final class FirestoreRepository: Repository {
         try vendor(uid).setData(from: profile, merge: true)
     }
 
-    func observe(uid: String, onChange: @escaping @MainActor (VendorData) -> Void) {
+    func observe(uid: String, onChange: @escaping @MainActor (VendorData) -> Void) async {
         stopObserving()
         data = VendorData()
         func listen<T: Decodable>(_ coll: String, _ type: T.Type, _ assign: @escaping ([T]) -> Void) {
             let reg = vendor(uid).collection(coll).addSnapshotListener { [weak self] snap, error in
                 guard let self, let snap else { return }
                 let items: [T] = snap.documents.compactMap { doc in
-                    do { return try doc.data(as: T.self) } catch { print("Firestore decode \(coll)/\(doc.documentID): \(error)"); return nil }
+                    do { return try doc.data(as: T.self) } catch {
+                        // Document ids are vendor data, so they stay private in the system log.
+                        Log.repository.error("Decode failed in \(coll, privacy: .public)/\(doc.documentID, privacy: .private)")
+                        return nil
+                    }
                 }
                 assign(items)
                 let snapshot = self.data
                 Task { @MainActor in onChange(snapshot) }
             }
-            listeners.append(reg)
+            listeners.add(reg)
         }
         listen(Coll.clients, Client.self) { self.data.clients = $0 }
         listen(Coll.events, Event.self) { self.data.events = $0 }
@@ -59,8 +66,7 @@ final class FirestoreRepository: Repository {
     }
 
     func stopObserving() {
-        listeners.forEach { $0.remove() }
-        listeners = []
+        listeners.removeAll()
     }
 
     func write(uid: String, _ ops: [WriteOp]) async throws {
@@ -93,4 +99,25 @@ final class FirestoreRepository: Repository {
         }
         try await vendor(uid).delete()
     }
+}
+
+/// Holds Firestore listener registrations and removes them when it is released.
+///
+/// Snapshot listeners retain their callback — and through it the repository and the store — until removed, so
+/// ownership of the cleanup belongs with the registrations themselves rather than with a caller who might
+/// forget. `@unchecked Sendable` is justified by the lock around the only mutable state.
+private final class ListenerBag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var registrations: [ListenerRegistration] = []
+
+    func add(_ registration: ListenerRegistration) {
+        lock.withLock { registrations.append(registration) }
+    }
+
+    func removeAll() {
+        let current = lock.withLock { let all = registrations; registrations = []; return all }
+        current.forEach { $0.remove() }
+    }
+
+    deinit { registrations.forEach { $0.remove() } }
 }
