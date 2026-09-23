@@ -78,6 +78,8 @@ private struct MButtonStyleImpl: ButtonStyle {
 /// Small icon-only 44pt target (row trailing actions, nav actions inside content).
 struct IconButton: View {
     var symbol: String
+    /// Spoken by VoiceOver. Required: without it the SF Symbol name ("chevron.left") is announced instead.
+    var label: LocalizedStringKey
     var color: Color = MColor.accentText
     var size: CGFloat = Dim.icon
     var action: () -> Void
@@ -89,13 +91,14 @@ struct IconButton: View {
                 .frame(width: Dim.touch, height: Dim.touch)
                 .contentShape(Rectangle())
         }
+        .accessibilityLabel(label)
         .buttonStyle(.plain)
     }
 }
 
 // MARK: - 02 Status chip (icon + word, always both)
 
-enum ChipKind {
+enum ChipKind: CaseIterable {
     case paid, partial, overdue, confirmed, pending, cancelled, conflict, arrived, absent, loss
 
     var label: String {
@@ -176,6 +179,7 @@ struct Avatar: View {
         .frame(width: size, height: size)
         .clipShape(Circle())
         .opacity(muted ? 0.5 : 1)
+        .accessibilityLabel(Text(name))
     }
 }
 
@@ -490,8 +494,14 @@ struct ListRow<Leading: View, Trailing: View>: View {
     }
 }
 
+/// Purely decorative: the row itself carries the action and its label, so the chevron is hidden from VoiceOver.
 struct Chevron: View {
-    var body: some View { Image(systemName: "chevron.right").font(.system(size: 14, weight: .regular)).foregroundStyle(MColor.textMute) }
+    var body: some View {
+        Image(systemName: "chevron.right")
+            .font(.system(size: 14, weight: .regular))
+            .foregroundStyle(MColor.textMute)
+            .accessibilityHidden(true)
+    }
 }
 
 /// Icon tile used as list-row leading (B2 sections, C5 rows, E4 rows).
@@ -501,6 +511,7 @@ struct IconTile: View {
     var body: some View {
         Image(systemName: symbol).font(.system(size: 17, weight: .light)).foregroundStyle(color)
             .frame(width: Dim.avatar, height: Dim.avatar)
+            .accessibilityHidden(true)   // decorative: the row's title is the accessible content
     }
 }
 

@@ -132,6 +132,8 @@ extension View {
 /// Round glass icon action for root-screen headers (search, overflow) — the same control the nav bar would render.
 struct GlassIconButton: View {
     var symbol: String
+    /// Spoken by VoiceOver. Required: without it the SF Symbol name is announced instead.
+    var label: LocalizedStringKey
     var action: () -> Void
     var body: some View {
         Button(action: action) {
@@ -139,6 +141,7 @@ struct GlassIconButton: View {
         }
         .buttonStyle(.glass)
         .clipShape(Circle())
+        .accessibilityLabel(label)
     }
 }
 
@@ -253,7 +256,8 @@ struct PaymentRow: View {
                     StatusChip(kind: ChipKind.from(milestone.effectiveStatus))
                 }
                 if let trailingAction {
-                    IconButton(symbol: trailingSymbol, action: trailingAction).padding(.trailing, -Space.sm)
+                    IconButton(symbol: trailingSymbol, label: "Send a reminder", action: trailingAction)
+                        .padding(.trailing, -Space.sm)
                 }
             }
             .padding(.horizontal, Space.lg).padding(.vertical, Space.md)

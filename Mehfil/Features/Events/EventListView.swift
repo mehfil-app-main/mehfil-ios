@@ -28,7 +28,7 @@ struct EventListView: View {
 
     var body: some View {
         ScreenScaffold(title: "Events", subtitle: upcoming.isEmpty ? "Nothing booked yet" : "\(upcoming.count) upcoming · \(Fmt.inr(upcoming.reduce(0) { $0 + $1.quoted })) booked", isRoot: true, spacing: Space.lg, bottomPadding: 96,
-                       headerTrailing: AnyView(GlassIconButton(symbol: searching ? "xmark" : "magnifyingglass") { withAnimation(.snappy(duration: 0.25)) { searching.toggle(); if !searching { query = "" } } })) {
+                       headerTrailing: AnyView(GlassIconButton(symbol: searching ? "xmark" : "magnifyingglass", label: searching ? "Close search" : "Search events") { withAnimation(.snappy(duration: 0.25)) { searching.toggle(); if !searching { query = "" } } })) {
             if searching {
                 InputField(label: "Search", text: $query, placeholder: "Event, client or venue", trailing: "magnifyingglass")
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -231,7 +231,7 @@ struct EventDetailView: View {
         VStack(spacing: 0) {
             ForEach(store.milestones(for: e.id)) { m in
                 Hairline()
-                PaymentRow(milestone: m, subtitle: paymentSubtitle(m), subtitleColor: m.effectiveStatus == .overdue ? MColor.danger : MColor.textMute) { if m.isOpen { recordSheet = m } }
+                PaymentRow(milestone: m, subtitle: paymentSubtitle(m), subtitleColor: m.effectiveStatus == .overdue ? MColor.danger : MColor.textMute, action: { if m.isOpen { recordSheet = m } })
             }
             HStack(spacing: Space.md) {
                 MButton(title: "Record payment", icon: "indianrupeesign", style: .secondary, size: .compact) {

@@ -19,7 +19,7 @@ struct HomeView: View {
         let v = store.vendor
         ScreenScaffold(title: "\(greeting), \(v?.ownerFirstName ?? "there")",
                        subtitle: "\(Fmt.weekdayLong.string(from: Cal.today)) · \(saturdayEvents.count == 0 ? "nothing" : "\(saturdayEvents.count) event\(saturdayEvents.count == 1 ? "" : "s")") this Saturday", isRoot: true,
-                       headerTrailing: AnyView(GlassIconButton(symbol: "chart.bar") { store.push(.seasonSummary) })) {
+                       headerTrailing: AnyView(GlassIconButton(symbol: "chart.bar", label: "Season summary") { store.push(.seasonSummary) })) {
             if let (a, b, m) = store.seasonConflict, v?.notifyConflicts ?? true {
                 ConflictBanner(text: "\(a.name) and \(b.name) both need \(m.firstName)'s team on \(Fmt.weekdayDayMonth.string(from: a.start)).") {
                     store.push(.assignCrew(a.id), in: .team)
