@@ -190,7 +190,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Registers the REVERSED_CLIENT_ID from GoogleService-Info.plist as a URL scheme so Google Sign-In can return to the app.\n# The built Info.plist is declared as an input so this runs AFTER ProcessInfoPlistFile. Without that ordering Xcode\n# rewrites the file afterwards and the app ships the placeholder scheme, which crashes the Google flow when it opens.\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nGS=\"${SRCROOT}/Mehfil/GoogleService-Info.plist\"\nif [ ! -f \"$GS\" ]; then echo \"No GoogleService-Info.plist - building without cloud sign-in\"; exit 0; fi\nRID=$(/usr/libexec/PlistBuddy -c \"Print :REVERSED_CLIENT_ID\" \"$GS\" 2>/dev/null)\nif [ -z \"$RID\" ]; then echo \"error: GoogleService-Info.plist has no REVERSED_CLIENT_ID\"; exit 1; fi\n/usr/libexec/PlistBuddy -c \"Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 $RID\" \"$PLIST\" 2>/dev/null \\\n  || /usr/libexec/PlistBuddy -c \"Add :CFBundleURLTypes array\" -c \"Add :CFBundleURLTypes:0 dict\" -c \"Add :CFBundleURLTypes:0:CFBundleURLSchemes array\" -c \"Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string $RID\" \"$PLIST\"\nif ! /usr/libexec/PlistBuddy -c \"Print :CFBundleURLTypes:0:CFBundleURLSchemes:0\" \"$PLIST\" 2>/dev/null | grep -qxF \"$RID\"; then\n  echo \"error: the Google Sign-In URL scheme did not survive into the built Info.plist\"; exit 1\nfi\necho \"Registered Google Sign-In URL scheme $RID\"\n";
+			shellScript = "# Verifies the Google Sign-In URL scheme that ProcessInfoPlistFile expanded from $(GOOGLE_REVERSED_CLIENT_ID).\n# This phase only READS the built app. A script phase runs after CodeSign, so editing the bundle here\n# invalidates the signature and the device refuses to install it.\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nGS=\"${SRCROOT}/Mehfil/GoogleService-Info.plist\"\n[ -f \"$GS\" ] || { echo \"No GoogleService-Info.plist - building without cloud sign-in\"; exit 0; }\nRID=$(/usr/libexec/PlistBuddy -c \"Print :REVERSED_CLIENT_ID\" \"$GS\" 2>/dev/null)\nHAVE=$(/usr/libexec/PlistBuddy -c \"Print :CFBundleURLTypes:0:CFBundleURLSchemes:0\" \"$PLIST\" 2>/dev/null)\nif [ \"$HAVE\" != \"$RID\" ]; then\n  echo \"error: built URL scheme is \\\"$HAVE\\\" but GoogleService-Info.plist expects \\\"$RID\\\". Set GOOGLE_REVERSED_CLIENT_ID in the target build settings - Google sign-in crashes without it.\"\n  exit 1\nfi\necho \"Google Sign-In URL scheme OK: $RID\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -346,6 +346,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
+				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.935123862628-b29pddb028h1ed142c13rb7uk0asv3li";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Mehfil/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mehfil;
@@ -378,6 +379,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
+				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.935123862628-b29pddb028h1ed142c13rb7uk0asv3li";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Mehfil/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mehfil;

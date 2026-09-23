@@ -11,7 +11,7 @@
 			<string>Google Sign-In</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>mehfil-google-signin-placeholder</string>
+				<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
 			</array>
 		</dict>
 	</array>
