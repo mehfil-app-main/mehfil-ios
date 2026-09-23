@@ -348,9 +348,8 @@ struct SharedEventPageView: View {
         return s
     }
 
-    /// The gradient mesh was the previous skin's signature and has no Airbnb equivalent: an Airbnb listing page
-    /// is a white canvas where the photographs do the work. Still light in the dark wall on purpose — this is
-    /// the page a client opens from a WhatsApp link.
+    /// The client's page is a white canvas where the moodboard photographs do the work, not a decorative
+    /// gradient. Still light in dark mode on purpose — this is the page a client opens from a WhatsApp link.
     private var mesh: some View { Palette.canvas }
 
     private func section<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {

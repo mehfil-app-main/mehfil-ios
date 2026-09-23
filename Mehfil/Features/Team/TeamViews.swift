@@ -276,7 +276,7 @@ struct AttendanceView: View {
     }
 }
 
-/// Tri-state control: confirmed = outline ink · arrived = filled emphasis · absent = ruby outline on ruby tint (NOTES Phase 5).
+/// Tri-state control: confirmed = outline ink · arrived = filled emphasis · absent = danger outline on danger tint (NOTES Phase 5).
 struct TriState: View {
     var state: AttendanceState
     var action: () -> Void

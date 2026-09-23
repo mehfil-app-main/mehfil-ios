@@ -14,7 +14,7 @@ enum EventStatus: String, Codable { case upcoming, completed, cancelled }
 /// Payment state shown on the event card chip (spec component 2).
 enum PaymentState: String, Codable { case paid, partial, overdue, pending }
 
-/// Event colour is assigned per event at creation, cycling 1→4. Ruby is excluded (NOTES ruling 2).
+/// Event colour is assigned per event at creation, cycling 1→4. The danger red is excluded: it means overdue, absent, over or loss.
 enum EventHue: Int, Codable, CaseIterable { case one = 1, two, three, four }
 
 struct Venue: Codable, Hashable {

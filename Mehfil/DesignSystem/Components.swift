@@ -37,7 +37,7 @@ private struct MButtonStyleImpl: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
         let h: CGFloat = size == .regular ? Dim.button : Dim.buttonCompact
-        // Never below design.md's 8 × 16 padding; regular buttons use sm × xl.
+        // Never below 8 × 16 padding; regular buttons use sm × xl.
         let hp: CGFloat = size == .regular ? Space.xl : Space.lg
         configuration.label
             .foregroundStyle(foreground(pressed))
@@ -147,7 +147,7 @@ struct StatusChip: View {
     }
     private var bg: Color {
         switch kind {
-        case .paid: MColor.accentSoftBg          // pill-tag-soft: settled money is not decoration
+        case .paid: MColor.accentSoftBg          // settled money is not decoration
         case .partial: MColor.warnTint
         case .overdue, .conflict, .absent, .loss: MColor.dangerTint
         case .confirmed, .arrived, .pending, .cancelled: MColor.surface
@@ -194,12 +194,13 @@ enum Initials {
         return String(first).uppercased()
     }
 
-    /// Eight hues that all carry white text at 4.5:1 or better, on brand with the Airbnb skin.
+    /// Eight hues that all carry white text at 6:1 or better and stay distinguishable from each other.
+    /// Identical to the Android list, so a person keeps the same tile on every device.
     private static let hues: [Color] = [
-        Color(.sRGB, red: 0.75, green: 0.22, blue: 0.36, opacity: 1),   // rausch, deepened for contrast
-        Color(.sRGB, red: 0.57, green: 0.09, blue: 0.30, opacity: 1),   // plus
-        Color(.sRGB, red: 0.27, green: 0.02, blue: 0.47, opacity: 1),   // luxe
-        Color(.sRGB, red: 0.13, green: 0.35, blue: 0.62, opacity: 1),   // legal-link, deepened
+        Color(.sRGB, red: 0.72, green: 0.12, blue: 0.37, opacity: 1),   // rose — rani, deepened for contrast
+        Color(.sRGB, red: 0.49, green: 0.14, blue: 0.29, opacity: 1),   // berry
+        Color(.sRGB, red: 0.36, green: 0.17, blue: 0.51, opacity: 1),   // plum
+        Color(.sRGB, red: 0.13, green: 0.35, blue: 0.62, opacity: 1),   // blue
         Color(.sRGB, red: 0.11, green: 0.40, blue: 0.36, opacity: 1),   // teal
         Color(.sRGB, red: 0.45, green: 0.30, blue: 0.13, opacity: 1),   // amber, deepened
         Color(.sRGB, red: 0.30, green: 0.35, blue: 0.42, opacity: 1),   // slate

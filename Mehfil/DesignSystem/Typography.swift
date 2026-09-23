@@ -1,7 +1,7 @@
 import SwiftUI
 
-// Type roles from tokens.css — Airbnb skin. Inter (design.md's sanctioned Cereal substitute) at 400–700.
-// Light (300) is gone: Airbnb's lightest documented weight is 400, and the scale leans on 600/700 for headings.
+// Type roles from tokens.css. Inter at 400–700: 400 is the lightest weight in the scale, and headings lean on
+// 600/700 so a white, hairline-structured screen still has a clear hierarchy.
 
 enum TypeRole {
     case displayHero, displayLg, displayMd, headingLg, headingMd, headingSm
@@ -10,16 +10,16 @@ enum TypeRole {
 
     var size: CGFloat {
         switch self {
-        case .displayHero: 40          // DERIVED from rating-display 64 — see NOTES.md
-        case .displayLg: 28            // display-xl
-        case .displayMd: 22            // display-lg — screen titles
-        case .headingLg: 21            // display-md
-        case .headingMd: 20            // display-sm — sheet titles
+        case .displayHero: 40          // the rupee hero: 64 collides with the chevron at 361pt (NOTES.md)
+        case .displayLg: 28            // E2 title
+        case .displayMd: 22            // screen titles
+        case .headingLg: 21
+        case .headingMd: 20            // sheet titles
         case .headingSm, .bodyLg, .bodyMdStrong, .buttonMd: 16
         case .bodyMd, .bodyTabular, .bodyTabularStrong, .buttonSm: 14
-        case .caption: 13              // caption-sm — the load-bearing floor
-        case .micro: 12                // micro-label
-        case .microCap: 11             // badge — tab labels, eyebrows only
+        case .caption: 13              // the load-bearing floor
+        case .micro: 12
+        case .microCap: 11             // tab labels, eyebrows only
         }
     }
     var weight: Font.Weight {
@@ -52,7 +52,7 @@ enum TypeRole {
         case .displayHero: -0.63       // -1px ÷ 64 × 40
         case .displayMd: -0.44
         case .headingMd: -0.18
-        default: 0                     // Airbnb sets no tracking on the rest of the scale
+        default: 0                     // no tracking below the display sizes
         }
     }
     /// tnum on every money / numeric cell (DERIVED: money columns must align).

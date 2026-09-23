@@ -429,7 +429,7 @@ struct TimelineStrip: View {
     }
 }
 
-// MARK: - Date strip (D1 / D4 selector: seven days from today; conflict days in ruby)
+// MARK: - Date strip (D1 / D4 selector: seven days from today; conflict days in the danger red)
 
 struct DateStrip: View {
     @Binding var selected: Date

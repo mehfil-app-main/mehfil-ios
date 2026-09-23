@@ -1,13 +1,13 @@
 import SwiftUI
 import UIKit
 
-// Source of truth: tokens.css — Airbnb skin (light on :root, dark on [data-theme="dark"]).
-// Palette primitives are documented hues from DESIGN-airbnb.md; everything else is an alias or an alpha of one.
+// Source of truth: tokens.css (light on :root, dark on [data-theme="dark"]). The reasoning lives in NOTES.md.
+// Palette primitives are the only hues in the app; everything else is an alias or an alpha of one.
 //
-// What changed from the previous (Stripe) skin, per NOTES.md:
+// The system in brief:
 //   · ground and surface are both white; structure comes from hairlines and 14px clipping, not a tinted ground
-//   · Rausch is the single voltage and is spent only on filled CTAs, the FAB, the selected tab, save/assign,
-//     the hero progress bar and event 1 — links, nav, date selection and data-viz are ink
+//   · rani is the single accent, spent only on filled CTAs, the FAB, the selected tab, save/assign, the hero
+//     progress bar, event 1 and chart bars — links, nav and date selection are ink
 //   · one shadow tier, reserved for things that float; resting cards are flat with a hairline
 //   · buttons and inputs are 8px, cards and photos 14px, sheets 20px, chips/avatars/orbs pill
 
@@ -21,15 +21,16 @@ private extension Color {
     }
 }
 
-/// Documented hues. Nothing outside this enum invents a colour.
+/// The palette. Nothing outside this enum invents a colour.
 enum Palette {
-    static let rausch = Color(hex: 0xff385c)
-    static let rauschActive = Color(hex: 0xe00b41)
-    static let rauschDisabled = Color(hex: 0xffd1da)
+    /// Rani pink — the accent. White text on it is 4.84:1, so filled buttons pass AA.
+    static let rani = Color(hex: 0xd6246e)
+    static let raniPress = Color(hex: 0xb81f5f)
+    static let raniPale = Color(hex: 0xf6cfdf)
     static let error = Color(hex: 0xc13515)
     static let errorHover = Color(hex: 0xb32505)
-    static let luxe = Color(hex: 0x460479)
-    static let plus = Color(hex: 0x92174d)
+    static let plum = Color(hex: 0x5b2c83)
+    static let forest = Color(hex: 0x2e6b4f)
     static let ink = Color(hex: 0x222222)
     static let body = Color(hex: 0x3f3f3f)
     static let muted = Color(hex: 0x6a6a6a)
@@ -42,13 +43,15 @@ enum Palette {
     static let surfaceStrong = Color(hex: 0xf2f2f2)
     static let onPrimary = Color.white
     static let onDark = Color.white
-    static let legalLink = Color(hex: 0x428bff)
+    static let azure = Color(hex: 0x428bff)
 
-    // DERIVED dark values: any documented hue below 4.5:1 on ink, mixed toward canvas until it passes.
+    // DERIVED dark values: any hue below 4.5:1 on ink, mixed toward canvas until it passes.
     static let darkSurface = Color(hex: 0x2f2f2f)      // canvas 6% over ink
+    static let darkAccent = Color(hex: 0xe573a2)       // rani + 36% canvas (5.5:1 on ink, 4.7:1 on dark surface)
+    static let darkAccentPress = Color(hex: 0xd26b95)  // darkAccent 10% toward ink (ink text 4.8:1)
     static let darkDanger = Color(hex: 0xd4725b)       // error + 30% canvas (4.8:1)
-    static let darkWarn = Color(hex: 0xa282bc)         // luxe + 50% canvas (4.9:1)
-    static let darkEvent2 = Color(hex: 0xbe7494)       // plus + 40% canvas
+    static let darkWarn = Color(hex: 0xa68dbc)         // plum + 46% canvas (4.6:1)
+    static let darkForest = Color(hex: 0x79a08e)       // forest + 36% canvas
 }
 
 /// Semantic aliases. Each resolves light/dark exactly as tokens.css does.
@@ -60,39 +63,41 @@ enum MColor {
     /// Circular icon buttons and the keypad.
     static let fillStrong = Color.adaptive(Palette.surfaceStrong, Color.white.opacity(0.10))
     static let surfacePressed = Color.adaptive(Palette.surfaceSoft, Color.white.opacity(0.06))
-    static let surfaceSelected = Color.adaptive(Palette.rausch.opacity(0.08), Palette.rausch.opacity(0.16))
+    static let surfaceSelected = Color.adaptive(Palette.rani.opacity(0.08), Palette.rani.opacity(0.16))
     static let text = Color.adaptive(Palette.ink, Palette.onDark)
     static let textSecondary = Color.adaptive(Palette.body, Palette.hairline)
     static let textMute = Color.adaptive(Palette.muted, Palette.mutedSoft)
-    static let textOnPrimary = Palette.onPrimary
+    /// Text on an accent or danger fill. Ink in dark mode: the lifted accent is too light for white (2.9:1).
+    static let textOnPrimary = Color.adaptive(Palette.onPrimary, Palette.ink)
     static let line = Color.adaptive(Palette.hairline, Color.white.opacity(0.14))
     static let lineSoft = Color.adaptive(Palette.hairlineSoft, Color.white.opacity(0.08))
     static let lineInput = Color.adaptive(Palette.hairline, Color.white.opacity(0.28))
-    /// The single brand voltage: filled CTAs, the FAB, the selected tab, save/assign, the hero bar, event 1.
-    static let accent = Palette.rausch
-    static let accentPress = Palette.rauschActive
-    /// Deliberately NOT Rausch — Airbnb's inline links are ink with an underline.
+    /// The single accent: filled CTAs, the FAB, the selected tab, save/assign, the hero bar, event 1, chart bars.
+    static let accent = Color.adaptive(Palette.rani, Palette.darkAccent)
+    static let accentPress = Color.adaptive(Palette.raniPress, Palette.darkAccentPress)
+    /// Deliberately NOT the accent: inline links are ink with an underline, so the accent stays rare.
     static let accentText = Color.adaptive(Palette.ink, Palette.onDark)
-    static let accentTint = Color.adaptive(Palette.rausch.opacity(0.08), Palette.rausch.opacity(0.16))
-    /// The documented pale Rausch, used for chart series.
-    static let accentPale = Color.adaptive(Palette.rauschDisabled, Palette.rausch.opacity(0.42))
+    static let accentTint = Color.adaptive(Palette.rani.opacity(0.08), Palette.rani.opacity(0.16))
+    /// Pale rani, used for chart series.
+    static let accentPale = Color.adaptive(Palette.raniPale, Palette.rani.opacity(0.42))
     static let accentSoftBg = Color.adaptive(Palette.surfaceStrong, Color.white.opacity(0.10))
     static let accentSoftText = Color.adaptive(Palette.ink, Palette.onDark)
     static let danger = Color.adaptive(Palette.error, Palette.darkDanger)
     static let dangerTint = Color.adaptive(Palette.error.opacity(0.08), Palette.error.opacity(0.18))
-    /// Luxe purple: partial payments and "due this week". A flagged derivation — see NOTES.md.
-    static let warn = Color.adaptive(Palette.luxe, Palette.darkWarn)
-    static let warnTint = Color.adaptive(Palette.luxe.opacity(0.08), Palette.luxe.opacity(0.30))
-    /// Paid: an ink fill, the date-picker-day-selected treatment. Settled money is not decoration.
+    /// Plum: partial payments and "due this week" — the one hue that separates from both the accent and the
+    /// danger red at chip size. See NOTES.md.
+    static let warn = Color.adaptive(Palette.plum, Palette.darkWarn)
+    static let warnTint = Color.adaptive(Palette.plum.opacity(0.08), Palette.plum.opacity(0.30))
+    /// Paid: an ink fill, the same treatment as a selected date. Settled money is not decoration.
     static let settledBg = Color.adaptive(Palette.ink, Palette.canvas)
     static let settledText = Color.adaptive(Palette.onDark, Palette.ink)
-    static let disabledBg = Color.adaptive(Palette.rauschDisabled, Color.white.opacity(0.10))
+    static let disabledBg = Color.adaptive(Palette.raniPale, Color.white.opacity(0.10))
     static let disabledText = Color.adaptive(Palette.onPrimary, Color.white.opacity(0.45))
     static let disabledOutline = Color.adaptive(Palette.borderStrong, Color.white.opacity(0.24))
     static let toastBg = Color.adaptive(Palette.ink, Palette.canvas)
     static let toastText = Color.adaptive(Palette.onDark, Palette.ink)
     static let toastSuccess = Color.adaptive(Palette.onDark, Palette.ink)
-    static let toastError = Color.adaptive(Palette.rausch, Palette.error)
+    static let toastError = Color.adaptive(Palette.rani, Palette.error)
     static let toastInfo = Color.adaptive(Palette.mutedSoft, Palette.muted)
     static let scrim = Color.black.opacity(0.5)
     static let meshBase = Color.adaptive(Palette.canvas, Palette.ink)
@@ -105,9 +110,9 @@ enum MColor {
     /// overdue / absent / over / loss.
     static func event(_ hue: EventHue) -> Color {
         switch hue {
-        case .one: Palette.rausch
-        case .two: Color.adaptive(Palette.plus, Palette.darkEvent2)
-        case .three: Palette.legalLink
+        case .one: accent
+        case .two: Color.adaptive(Palette.forest, Palette.darkForest)
+        case .three: Palette.azure
         case .four: Color.adaptive(Palette.ink, Palette.hairline)   // ink vanishes on an ink ground
         }
     }
@@ -132,7 +137,7 @@ enum Dim {
 
 // MARK: - Elevation
 //
-// design.md documents ONE shadow and says depth comes from photography and rounded clipping, so there is no
+// There is ONE shadow: depth comes from photography and rounded clipping, so there is no
 // progressive tier: `elevation(2)` is the same shadow as `elevation(1)`. It is reserved for things that float —
 // the FAB, sheets, toasts, the selected segment, the search pill — and resting cards do not use it.
 
@@ -150,7 +155,7 @@ struct ShadowLevel: ViewModifier {
 extension View {
     func elevation(_ level: Int = 1) -> some View { modifier(ShadowLevel(level: level)) }
 
-    /// design.md card: white surface, 1px hairline, 14px clipping — flat at rest.
+    /// Card: white surface, 1px hairline, 14px clipping — flat at rest.
     func card(padding: CGFloat = Space.lg, fill: Color = MColor.surface, radius: CGFloat = Radius.md) -> some View {
         self
             .padding(padding)
