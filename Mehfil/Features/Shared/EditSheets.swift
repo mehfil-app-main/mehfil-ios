@@ -228,8 +228,12 @@ struct NotificationsSheet: View {
         } actions: { MButton(title: "Done") { dismiss() } }
         .presentationDetents([.medium])
     }
-    private func toggle(_ title: String, _ subtitle: String, _ value: Bool, _ set: @escaping (Bool) -> Void) -> some View {
-        Toggle(isOn: Binding(get: { value }, set: set)) {
+    @MainActor
+    private func toggle(_ title: String, _ subtitle: String, _ value: Bool, _ set: @escaping @MainActor (Bool) -> Void) -> some View {
+        // Binding stores its setter, so SwiftUI requires it to be Sendable. The work inside touches the
+        // main-actor store, which `MainActor.assumeIsolated` states explicitly: a Binding's setter is only
+        // ever invoked from the main actor during a view update.
+        Toggle(isOn: Binding(get: { value }, set: { newValue in MainActor.assumeIsolated { set(newValue) } })) {
             VStack(alignment: .leading, spacing: 2) { Text(title).type(.bodyMdStrong).foregroundStyle(MColor.text); Text(subtitle).type(.caption).foregroundStyle(MColor.textMute) }
         }
         .tint(MColor.accent).padding(.horizontal, Space.lg).padding(.vertical, Space.md)

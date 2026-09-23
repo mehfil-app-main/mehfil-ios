@@ -89,7 +89,7 @@ struct PaymentScheduleView: View {
                 RowGroup {
                     ForEach(Array(ms.enumerated()), id: \.element.id) { i, m in
                         if i > 0 { Hairline() }
-                        PaymentRow(milestone: m, subtitle: paymentSubtitle(m), subtitleColor: m.effectiveStatus == .overdue ? MColor.danger : MColor.textMute) { if m.isOpen { record = m } }
+                        PaymentRow(milestone: m, subtitle: paymentSubtitle(m), subtitleColor: m.effectiveStatus == .overdue ? MColor.danger : MColor.textMute, action: { if m.isOpen { record = m } })
                     }
                     if !ms.isEmpty { Hairline() }
                     Button { newDue = e.day; addMilestone = true } label: {

@@ -106,6 +106,7 @@ extension View {
 }
 
 extension Text {
+    @MainActor
     func role(_ role: TypeRole, _ color: Color = MColor.text) -> some View {
         self.type(role).foregroundStyle(color)
     }
