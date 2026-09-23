@@ -181,6 +181,7 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
 			);
 			name = "Google Sign-In URL scheme";
 			outputFileListPaths = (
@@ -189,7 +190,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Registers the REVERSED_CLIENT_ID from GoogleService-Info.plist as a URL scheme so Google Sign-In can return to the app.\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nGS=\"${SRCROOT}/Mehfil/GoogleService-Info.plist\"\nif [ -f \"$GS\" ] && [ -f \"$PLIST\" ]; then\n  RID=$(/usr/libexec/PlistBuddy -c \"Print :REVERSED_CLIENT_ID\" \"$GS\" 2>/dev/null)\n  if [ -n \"$RID\" ]; then\n    /usr/libexec/PlistBuddy -c \"Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 $RID\" \"$PLIST\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Add :CFBundleURLTypes array\" -c \"Add :CFBundleURLTypes:0 dict\" -c \"Add :CFBundleURLTypes:0:CFBundleURLSchemes array\" -c \"Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string $RID\" \"$PLIST\"\n    echo \"Registered Google Sign-In URL scheme\"\n  fi\nelse\n  echo \"No GoogleService-Info.plist — building without cloud sign-in\"\nfi\n";
+			shellScript = "# Registers the REVERSED_CLIENT_ID from GoogleService-Info.plist as a URL scheme so Google Sign-In can return to the app.\n# The built Info.plist is declared as an input so this runs AFTER ProcessInfoPlistFile. Without that ordering Xcode\n# rewrites the file afterwards and the app ships the placeholder scheme, which crashes the Google flow when it opens.\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nGS=\"${SRCROOT}/Mehfil/GoogleService-Info.plist\"\nif [ ! -f \"$GS\" ]; then echo \"No GoogleService-Info.plist - building without cloud sign-in\"; exit 0; fi\nRID=$(/usr/libexec/PlistBuddy -c \"Print :REVERSED_CLIENT_ID\" \"$GS\" 2>/dev/null)\nif [ -z \"$RID\" ]; then echo \"error: GoogleService-Info.plist has no REVERSED_CLIENT_ID\"; exit 1; fi\n/usr/libexec/PlistBuddy -c \"Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 $RID\" \"$PLIST\" 2>/dev/null \\\n  || /usr/libexec/PlistBuddy -c \"Add :CFBundleURLTypes array\" -c \"Add :CFBundleURLTypes:0 dict\" -c \"Add :CFBundleURLTypes:0:CFBundleURLSchemes array\" -c \"Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string $RID\" \"$PLIST\"\nif ! /usr/libexec/PlistBuddy -c \"Print :CFBundleURLTypes:0:CFBundleURLSchemes:0\" \"$PLIST\" 2>/dev/null | grep -qxF \"$RID\"; then\n  echo \"error: the Google Sign-In URL scheme did not survive into the built Info.plist\"; exit 1\nfi\necho \"Registered Google Sign-In URL scheme $RID\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
